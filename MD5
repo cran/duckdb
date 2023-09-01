@@ -1,4 +1,4 @@
-7ed633426be62ce6294fa4d4074eb1ad *DESCRIPTION
+e855e46b2a5c71b04b5f7e391d85bfcd *DESCRIPTION
 6793c89d1af721728c4d58c99d5b9d30 *LICENSE
 e975be1b49bcc0e567737d712d3e3cc8 *NAMESPACE
 020754c4367c905a2a063f2c8a286ebf *R/Connection.R
@@ -6,7 +6,7 @@ e975be1b49bcc0e567737d712d3e3cc8 *NAMESPACE
 1b19f326281b21675272963c31a52816 *R/Result.R
 d0ef7160705dbda6bfa1a4f64cdcd036 *R/Viewer.R
 02d714be6689e35f22b89efab32aa095 *R/backend-dbplyr__duckdb_connection.R
-2db929241b4ff8a8df57623513228184 *R/cpp11.R
+2110a10e52e4f32513344cedcb450872 *R/cpp11.R
 d49f39f1e48e4dedb7534852ff82d37c *R/csv.R
 dd4470c96c18d554032e42de78a4a49f *R/dbAppendTable__duckdb_connection.R
 7c1ecb6add1b559b42ea2e279cd86bdc *R/dbBegin__duckdb_connection.R
@@ -41,7 +41,7 @@ d8c073bb27119244fc6f38eccc2e1bc4 *R/dbRemoveTable__duckdb_connection_character.R
 93a267c1ebd2a4b97d587cf5d69f2475 *R/duckdb.R
 8fb9ff90183babfdac2e79cdd2e25dea *R/print__duckdb_explain.R
 9e05b046c78c32be0b2bfe2695051f11 *R/register.R
-127c610fde75e08e7edf087d00860caa *R/relational.R
+7641d60e267b424b22cff0a8f5bac6fa *R/relational.R
 cf39c6b8d543533b5fc5cb2673e48b69 *R/s3_register.R
 099b669c4e97476cba8e8e4f2fcc6e19 *R/show__duckdb_connection.R
 e48e0f4d25ce5a055ce7df9b95f99082 *R/show__duckdb_driver.R
@@ -49,7 +49,7 @@ e48e0f4d25ce5a055ce7df9b95f99082 *R/show__duckdb_driver.R
 864c0e9b6d8b508b57234347d3d1d360 *R/sql.R
 f3ae5b73437b0149357f91f20741ee7d *R/substrait.R
 6ef65b78d5a154855e7e7709b8a89c60 *R/zzz.R
-a9aab4bcaefc5b07326a047127c88585 *README.md
+48536780e26a5893d1ae91bafbf1ec1c *README.md
 95645911d270eeea9ebcdc773288dbed *inst/icons/duckdb.png
 e8a15f1b5781b5d2803afe6ab00d6404 *inst/include/cpp11.hpp
 ac46452ffea887725873cc0608f5025d *inst/include/cpp11/R.hpp
@@ -96,7 +96,7 @@ c0ae3404ed0a47d360fdcc8ebbb9b711 *man/duckdb_result-class.Rd
 c5e7c92e6e42311016504a408476d373 *src/Makevars
 34f34cb54043b2ce842f37a1d6863fce *src/Makevars.win
 6e5f169e828e7b8cda60a2c0e4aa7701 *src/connection.cpp
-439a4ab05d3e256bda261c579b5a1dfd *src/cpp11.cpp
+2e8b562a624852b1e8aa4c4cd9974ef1 *src/cpp11.cpp
 ea712fafc962b748dd070f6b737cc882 *src/database.cpp
 d31f439a9256cc0f28aa0fcd9144ecbb *src/duckdb/extension/parquet/column_reader.cpp
 5474ec1f5d3d7d763bf583a413d3386a *src/duckdb/extension/parquet/column_writer.cpp
@@ -2571,17 +2571,17 @@ a8191d73e2fdc4efe8c9a82f4a9722af *src/duckdb/ub_src_storage_compression_chimp.cp
 12acc56db8e676f6049cee215758544e *src/duckdb/ub_src_storage_statistics.cpp
 11557237e8ba84db7b7b7edeff19e9f7 *src/duckdb/ub_src_storage_table.cpp
 bb87e7725e015e2a819b931e6b016e4c *src/duckdb/ub_src_transaction.cpp
-c5b82a8a7752d56fe8f8b680cb7c6739 *src/include/rapi.hpp
-bfab5b7ebf664cfa9be8b9e23637cde6 *src/include/reltoaltrep.hpp
+2bd74c6861cd649a3e252c9214721d0f *src/include/rapi.hpp
+90d6f17601cb65087a8cb0cd5c261225 *src/include/reltoaltrep.hpp
 ad38f5bba84a80f446bb280673dc237f *src/include/typesr.hpp
 368e7be49467a6409c1aaca0950c89ef *src/register.cpp
 67d6f1c97b7f9e0fb337e6e8fd1fb068 *src/relational.cpp
-cf10fa41c6993e787c1cf2ef439c23a4 *src/reltoaltrep.cpp
+445cd0b802b18536d83cb15d5eff4381 *src/reltoaltrep.cpp
 d15a20201fdbed81487c64a0dbb689b1 *src/scan.cpp
 88f6f21f6578739bd4f4894a82d3b67e *src/statement.cpp
 e9aca686f387592f8c699e2f5a85fd55 *src/transform.cpp
 042a848f7cc328a4780ca05be49e1721 *src/types.cpp
-02f8c7789e450b229e5c7bf9ac1742f2 *src/utils.cpp
+f638297c0ee403463538f296eb22149e *src/utils.cpp
 78ca03523e01aa272eeb2f0bd5a53011 *tests/testthat.R
 96ce833955091e793c1265569d5063ab *tests/testthat/_snaps/backend-dbplyr__duckdb_connection.md
 6cde4f186cbef0f2653b8b1a37691ea7 *tests/testthat/_snaps/explain.md
@@ -2596,8 +2596,7 @@ da441e8ef9a6b41b9d166500608413af *tests/testthat/test-DBItest.R
 2f2914ae28fe3864659d945414650dd5 *tests/testthat/test-rel_api.R
 057e655ecc463501f146bdf4e6b54d9b *tests/testthat/test-shutdown.R
 bf47c0f3a0781587def97c78490cf625 *tests/testthat/test_ambiguous_prepare.R
-c3f90eb02a950bdd18a9cf5afe70d6de *tests/testthat/test_arrow.R
-5ad34cfb89166055e124f96647314361 *tests/testthat/test_arrow_recordbatchreader.py
+1a330f3f2cf9167d6584e5bbc90e6296 *tests/testthat/test_arrow.R
 0d30450ab8f8716d8fab514aa65294bd *tests/testthat/test_arrow_stream.R
 c7a23d96de29ea5927e0ac33899de3cd *tests/testthat/test_backend-dbplyr__duckdb_connection.R
 cec85eb60ecc3b36203dfc6084df94a1 *tests/testthat/test_bind.R
@@ -2620,10 +2619,10 @@ c6b302ba389c7cedd5aae6bb7fa3731a *tests/testthat/test_parquet.R
 a3ce818c4cb2c7c4dd435207fb19c747 *tests/testthat/test_register.R
 60434301f7c5e98861b7620cd7035091 *tests/testthat/test_register_arrow.R
 891908e0804e2315fa13285f1005a689 *tests/testthat/test_register_readonly.R
-c9ddbd8f771cc4330f1906ae1b64001b *tests/testthat/test_relational.R
-1439bba03df63e03d87acfe916b5e62f *tests/testthat/test_struct.R
+447baf49fc1ae05118ada75d360d47dd *tests/testthat/test_relational.R
+8259cd27ac0932ac8da93da593d3ca6f *tests/testthat/test_struct.R
 ff31415409c10783fc36512cc6ef7920 *tests/testthat/test_tbl__duckdb_connection.R
-b3d7eab44a600a5c4df348969b4a2a85 *tests/testthat/test_timestamp.R
+c66139b07c5b1b55b30297f25cce0236 *tests/testthat/test_timestamp.R
 3458bc88f78f37e7b3ce9d0b5756ddb3 *tests/testthat/test_timezone.R
 0d70b43b41ce312eb3cb0c418ca2840f *tests/testthat/test_types.R
 f61a2bf9f4e00271fc78209a04c0fa07 *tests/testthat/test_viewer.R
