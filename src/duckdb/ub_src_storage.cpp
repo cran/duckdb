@@ -6,6 +6,8 @@
 
 #include "src/storage/block.cpp"
 
+#include "src/storage/data_pointer.cpp"
+
 #include "src/storage/data_table.cpp"
 
 #include "src/storage/index.cpp"
@@ -13,10 +15,6 @@
 #include "src/storage/local_storage.cpp"
 
 #include "src/storage/magic_bytes.cpp"
-
-#include "src/storage/meta_block_reader.cpp"
-
-#include "src/storage/meta_block_writer.cpp"
 
 #include "src/storage/storage_manager.cpp"
 

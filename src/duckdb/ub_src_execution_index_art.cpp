@@ -2,13 +2,9 @@
 
 #include "src/execution/index/art/node.cpp"
 
-#include "src/execution/index/art/fixed_size_allocator.cpp"
-
 #include "src/execution/index/art/iterator.cpp"
 
 #include "src/execution/index/art/leaf.cpp"
-
-#include "src/execution/index/art/leaf_segment.cpp"
 
 #include "src/execution/index/art/node4.cpp"
 
@@ -18,11 +14,7 @@
 
 #include "src/execution/index/art/node256.cpp"
 
-#include "src/execution/index/art/swizzleable_pointer.cpp"
-
 #include "src/execution/index/art/prefix.cpp"
-
-#include "src/execution/index/art/prefix_segment.cpp"
 
 #include "src/execution/index/art/art.cpp"
 

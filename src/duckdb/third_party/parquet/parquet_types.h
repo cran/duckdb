@@ -92,7 +92,8 @@ struct Encoding {
     DELTA_BINARY_PACKED = 5,
     DELTA_LENGTH_BYTE_ARRAY = 6,
     DELTA_BYTE_ARRAY = 7,
-    RLE_DICTIONARY = 8
+    RLE_DICTIONARY = 8,
+    BYTE_STREAM_SPLIT = 9,
   };
 };
 
@@ -101,7 +102,7 @@ extern const std::map<int, const char*> _Encoding_VALUES_TO_NAMES;
 std::ostream& operator<<(std::ostream& out, const Encoding::type& val);
 
 struct CompressionCodec {
-  enum type {
+  enum type : uint8_t {
     UNCOMPRESSED = 0,
     SNAPPY = 1,
     GZIP = 2,

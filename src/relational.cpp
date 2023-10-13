@@ -26,6 +26,8 @@
 #include "duckdb/main/relation/distinct_relation.hpp"
 #include "duckdb/main/relation/table_function_relation.hpp"
 
+#include "duckdb/common/enums/joinref_type.hpp"
+
 using namespace duckdb;
 using namespace cpp11;
 
@@ -44,17 +46,18 @@ external_pointer<T> make_external_prot(const string &rclass, SEXP prot, ARGS &&.
 }
 // DuckDB Expressions
 
-[[cpp11::register]] SEXP rapi_expr_reference(std::string name, std::string table) {
-	if (name.size() == 0) {
-		stop("expr_reference: Zero length name");
+[[cpp11::register]] SEXP rapi_expr_reference(r_vector<r_string> rnames) {
+	if (rnames.size() == 0) {
+		stop("expr_reference: Zero length name vector");
 	}
-	if (!table.empty()) {
-		auto res = make_external<ColumnRefExpression>("duckdb_expr", name, table);
-		res->alias = name; // TODO does this really make sense here?
-		return res;
-	} else {
-		return make_external<ColumnRefExpression>("duckdb_expr", name);
+	duckdb::vector<std::string> names;
+	for (auto name : rnames) {
+		if (name.size() == 0) {
+			stop("expr_reference: Zero length name");
+		}
+		names.push_back(name);
 	}
+	return make_external<ColumnRefExpression>("duckdb_expr", names);;
 }
 
 [[cpp11::register]] SEXP rapi_expr_constant(sexp val) {
@@ -170,7 +173,7 @@ external_pointer<T> make_external_prot(const string &rclass, SEXP prot, ARGS &&.
 
 	for (expr_extptr_t expr : exprs) {
 		auto dexpr = expr->Copy();
-		aliases.push_back(dexpr->alias.empty() ? dexpr->ToString() : dexpr->alias);
+		aliases.push_back(dexpr->GetName());
 		projections.push_back(std::move(dexpr));
 	}
 
@@ -300,9 +303,22 @@ bool constant_expression_is_not_null(duckdb::expr_extptr_t expr) {
 }
 
 [[cpp11::register]] SEXP rapi_rel_join(duckdb::rel_extptr_t left, duckdb::rel_extptr_t right, list conds,
-                                       std::string join) {
+                                       std::string join, std::string join_ref_type) {
 	auto join_type = JoinType::INNER;
+	auto ref_type = JoinRefType::REGULAR;
 	unique_ptr<ParsedExpression> cond;
+
+	if (join_ref_type == "regular") {
+		ref_type = JoinRefType::REGULAR;
+	} else if (join_ref_type == "cross") {
+		ref_type = JoinRefType::CROSS;
+	} else if (join_ref_type == "positional") {
+		ref_type = JoinRefType::POSITIONAL;
+	} else if (join_ref_type == "asof") {
+		ref_type = JoinRefType::ASOF;
+	}
+
+	cpp11::writable::list prot = {left, right};
 
 	if (join == "left") {
 		join_type = JoinType::LEFT;
@@ -314,9 +330,19 @@ bool constant_expression_is_not_null(duckdb::expr_extptr_t expr) {
 		join_type = JoinType::SEMI;
 	} else if (join == "anti") {
 		join_type = JoinType::ANTI;
-	} else if (join == "cross") {
-		auto res = std::make_shared<CrossProductRelation>(left->rel, right->rel);
-		return make_external<RelationWrapper>("duckdb_relation", res);
+	} else if (join == "cross" || ref_type == JoinRefType::POSITIONAL) {
+		if (ref_type != JoinRefType::POSITIONAL && ref_type != JoinRefType::CROSS) {
+			// users can only supply positional cross join, or cross join.
+			warning("Using `rel_join(join_ref_type = \"cross\")`");
+			ref_type = JoinRefType::CROSS;
+		}
+		auto res = std::make_shared<CrossProductRelation>(left->rel, right->rel, ref_type);
+		auto rel = make_external_prot<RelationWrapper>("duckdb_relation", prot, res);
+		// if the user described filters, apply them on top of the cross product relation
+		if (conds.size() > 0) {
+			return rapi_rel_filter(rel, conds);
+		}
+		return rel;
 	}
 
 	if (conds.size() == 1) {
@@ -329,10 +355,7 @@ bool constant_expression_is_not_null(duckdb::expr_extptr_t expr) {
 		cond = make_uniq<ConjunctionExpression>(ExpressionType::CONJUNCTION_AND, std::move(cond_args));
 	}
 
-	auto res = std::make_shared<JoinRelation>(left->rel, right->rel, std::move(cond), join_type);
-
-	cpp11::writable::list prot = {left, right};
-
+	auto res = std::make_shared<JoinRelation>(left->rel, right->rel, std::move(cond), join_type, ref_type);
 	return make_external_prot<RelationWrapper>("duckdb_relation", prot, res);
 }
 

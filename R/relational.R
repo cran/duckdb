@@ -1,18 +1,21 @@
 # expressions
 
 #' Create a column reference expression
-#' @param name the column name to be referenced
+#' @param names the column name to be referenced, could be a list to refer to schema.table.column etc.
 #' @param table the optional table name or a relation object to be referenced
 #' @return a column reference expression
 #' @noRd
 #' @examples
 #' col_ref_expr <- expr_reference("some_column_name")
 #' col_ref_expr2 <- expr_reference("some_column_name", "some_table_name")
-expr_reference <- function(name, table = "") {
+expr_reference <- function(names, table = NULL) {
   if (inherits(table, "duckdb_relation")) {
-    table <- rel_alias(table)
+    names <- c(rel_alias(table), names)
   }
-  rapi_expr_reference(name, table)
+  if (is.character(table) && !identical(table, "")) {
+    names <- c(table, names)
+  }
+   rapi_expr_reference(names)
 }
 
 #' Create a constant expression
@@ -212,13 +215,22 @@ expr_window_ <- function (window_function, partitions=list(), order_bys=list(), 
 #' rel2 <- rel_join(left, right, cond, "right")
 #' rel2 <- rel_join(left, right, cond, "left")
 #' rel2 <- rel_join(left, right, cond, "outer")
+
 rel_inner_join <- function(left, right, conds) {
-  rel_join(left, right, conds, "inner")
+  rel_join(left, right, conds, "inner", "regular")
 }
 
-rel_join <- function(left, right, conds, join = c("inner", "left", "right", "outer", "cross", "semi", "anti")) {
+rel_join <- function(left, right, conds,
+                     join = c("inner", "left", "right", "outer", "cross", "semi", "anti"),
+                     join_ref_type = c("regular", "natural", "cross", "positional", "asof")) {
   join <- match.arg(join)
-  rapi_rel_join(left, right, conds, join)
+  join_ref_type <- match.arg(join_ref_type)
+  # the ref type is naturally regular. Users won't write rel_join(left, right, conds, "cross", "cross")
+  # so we update it here.
+  if (join == "cross" && join_ref_type == "regular") {
+    join_ref_type <- "cross"
+  }
+  rapi_rel_join(left, right, conds, join, join_ref_type)
 }
 
 #' UNION ALL on two DuckDB relation objects
