@@ -1,4 +1,4 @@
-7cb3371ea1c25c61767993c1e3f2f92c *DESCRIPTION
+e3f393d52497b663f80a136949b8e778 *DESCRIPTION
 6793c89d1af721728c4d58c99d5b9d30 *LICENSE
 d7af05741422c1b16fd931e28aaa1fee *NAMESPACE
 020754c4367c905a2a063f2c8a286ebf *R/Connection.R
@@ -70,7 +70,7 @@ db94f12cca5bf0fc32e24fe818106300 *inst/include/cpp11/list.hpp
 4b22e60584cc8ae8a3e28e018d6da5dd *inst/include/cpp11/logicals.hpp
 0be378f1d599c9fb84deb6a0f01a7358 *inst/include/cpp11/matrix.hpp
 8efb781a399a0676e1b3dbd5ea3b8d8d *inst/include/cpp11/named_arg.hpp
-0de15dfa3de4f9f7c20de1ba06becfa3 *inst/include/cpp11/protect.hpp
+8c57edc6b8a685e5c8d4265c95024748 *inst/include/cpp11/protect.hpp
 e3711a64328f128b523e72b1cb1dda57 *inst/include/cpp11/r_bool.hpp
 e43bc609629e112a12443ecdfb196223 *inst/include/cpp11/r_string.hpp
 e1315e2cbc06e18314e40161e9057110 *inst/include/cpp11/r_vector.hpp
