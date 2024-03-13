@@ -1,8 +1,4 @@
-<div align="center">
-  <img src="https://duckdb.org/images/logo-dl/DuckDB_Logo-stacked.svg" height="120">
-</div>
-
-# duckdb R package
+# duckdb <a href="https://r.duckdb.org/"><img src="man/figures/logo.png" align="right" height="120" alt="duckdb website" /></a>
 
 ## Installation from CRAN
 
@@ -77,3 +73,9 @@ dbExecute(con, "LOAD '{{path_to_duckdb}}/build/release/extension/httpfs/httpfs.d
 
 For more information about using extensions, see the [documentation on extensions](https://duckdb.org/docs/extensions/overview).
 For instructions on building them, see [extension README](https://github.com/duckdb/duckdb/tree/main/extension#readme).
+
+## Contributors
+
+Thanks to all [contributors](https://github.com/duckdb/duckdb-r/graphs/contributors) to this repository, and to those who contributed when the code was still hosted in the main [duckdb/duckdb](https://github.com/duckdb/duckdb) repository:
+
+Mark Raasveldt, Pedro Holanda, Tom Ebergen, Reijo Sund, Nicolas Bennett, Patrik Schratz, Tishj, Laurens Kuiper, Sam Ansmink, Andy Teucher, Hadley Wickham, Jonathan Keane, Lindsay Wray, Richard Wesley, Elliana May, Edwin de Jonge, Dewey Dunnington, Carlo Piovesan, Andre Beckedorf, Tania Bogatsch, Pedro Ferreira, Maximilian Girlich, James Lamb, James Atkins, usurai, Ubuntu, Noam Ross, Michael Antonov, Jeroen Ooms, Jamie Lentin, Jacob, and Chilarai.
