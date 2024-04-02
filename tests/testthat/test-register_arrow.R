@@ -7,6 +7,8 @@ skip_if_not(arrow::arrow_with_parquet(), message = "The installed Arrow is not f
 library("arrow")
 
 test_that("duckdb_register_arrow() works", {
+  skip_if_not(TEST_RE2)
+
   con <- dbConnect(duckdb())
   on.exit(dbDisconnect(con, shutdown = TRUE))
 
@@ -27,6 +29,8 @@ test_that("duckdb_register_arrow() works", {
 })
 
 test_that("duckdb_register_arrow() works with record_batch_readers", {
+  skip_if_not(TEST_RE2)
+
   con <- dbConnect(duckdb())
   on.exit(dbDisconnect(con, shutdown = TRUE))
 
@@ -45,6 +49,8 @@ test_that("duckdb_register_arrow() works with record_batch_readers", {
 })
 
 test_that("duckdb_register_arrow() works with scanner", {
+  skip_if_not(TEST_RE2)
+
   con <- dbConnect(duckdb())
   on.exit(dbDisconnect(con, shutdown = TRUE))
 
@@ -445,6 +451,19 @@ test_that("we can list registered arrow tables", {
   duckdb_unregister_arrow(con, "t2")
 
   expect_equal(length(duckdb_list_arrow(con)), 0)
+})
+
+
+test_that("registered tables must be unique", {
+  con <- DBI::dbConnect(duckdb())
+  on.exit(dbDisconnect(con, shutdown = TRUE))
+  ds1 <- arrow::InMemoryDataset$create(mtcars)
+  ds2 <- arrow::InMemoryDataset$create(mtcars)
+
+  expect_equal(length(duckdb_list_arrow(con)), 0)
+
+  duckdb_register_arrow(con, "t1", ds1)
+  expect_error(duckdb_register_arrow(con, "t1", ds2), "'t1' already registered")
 })
 
 

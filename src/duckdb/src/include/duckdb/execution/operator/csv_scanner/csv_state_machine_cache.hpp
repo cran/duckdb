@@ -28,6 +28,11 @@ public:
 	//! For the Quoted State
 	bool skip_quoted[256];
 
+	uint64_t delimiter = 0;
+	uint64_t new_line = 0;
+	uint64_t carriage_return = 0;
+	uint64_t quote = 0;
+	uint64_t escape = 0;
 	const CSVState *operator[](idx_t i) const {
 		return state_machine[i];
 	}
@@ -63,7 +68,6 @@ public:
 	//! It first caches it, then returns it.
 	const StateMachine &Get(const CSVStateMachineOptions &state_machine_options);
 
-	static const string STATE_KEY;
 	static string ObjectType() {
 		return "CSV_STATE_MACHINE_CACHE";
 	}
