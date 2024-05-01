@@ -2,6 +2,7 @@
 #include "rapi.hpp"
 #include "typesr.hpp"
 #include "duckdb/common/adbc/adbc-init.hpp"
+#include "include/rfuns_extension.hpp"
 
 using namespace duckdb;
 
@@ -114,12 +115,12 @@ R_len_t RApiTypes::GetVecSize(RType rtype, SEXP coldata) {
 	return Rf_length(coldata);
 }
 
-Value RApiTypes::SexpToValue(SEXP valsexp, R_len_t idx) {
+Value RApiTypes::SexpToValue(SEXP valsexp, R_len_t idx, bool typed_logical_null) {
 	auto rtype = RApiTypes::DetectRType(valsexp, false); // TODO
 	switch (rtype.id()) {
 	case RType::LOGICAL: {
 		auto lgl_val = INTEGER_POINTER(valsexp)[idx];
-		return RBooleanType::IsNull(lgl_val) ? Value(LogicalType::BOOLEAN) : Value::BOOLEAN(lgl_val);
+		return RBooleanType::IsNull(lgl_val) ? Value(typed_logical_null ? LogicalType::BOOLEAN : LogicalType::SQLNULL) : Value::BOOLEAN(lgl_val);
 	}
 	case RType::INTEGER: {
 		auto int_val = INTEGER_POINTER(valsexp)[idx];
@@ -159,47 +160,47 @@ Value RApiTypes::SexpToValue(SEXP valsexp, R_len_t idx) {
 		auto d_val = INTEGER_POINTER(valsexp)[idx];
 		return RIntegerType::IsNull(d_val) ? Value(LogicalType::DATE) : Value::DATE(RDateType::Convert(d_val));
 	}
-	case RType::TIME_SECONDS: {
+	case RType::INTERVAL_SECONDS: {
 		auto ts_val = NUMERIC_POINTER(valsexp)[idx];
-		return RTimeSecondsType::IsNull(ts_val) ? Value(LogicalType::TIME)
-		                                        : Value::TIME(RTimeSecondsType::Convert(ts_val));
+		return RIntervalSecondsType::IsNull(ts_val) ? Value(LogicalType::INTERVAL)
+		                                        : Value::INTERVAL(RIntervalSecondsType::Convert(ts_val));
 	}
-	case RType::TIME_MINUTES: {
+	case RType::INTERVAL_MINUTES: {
 		auto ts_val = NUMERIC_POINTER(valsexp)[idx];
-		return RTimeMinutesType::IsNull(ts_val) ? Value(LogicalType::TIME)
-		                                        : Value::TIME(RTimeMinutesType::Convert(ts_val));
+		return RIntervalMinutesType::IsNull(ts_val) ? Value(LogicalType::INTERVAL)
+		                                        : Value::INTERVAL(RIntervalMinutesType::Convert(ts_val));
 	}
-	case RType::TIME_HOURS: {
+	case RType::INTERVAL_HOURS: {
 		auto ts_val = NUMERIC_POINTER(valsexp)[idx];
-		return RTimeHoursType::IsNull(ts_val) ? Value(LogicalType::TIME) : Value::TIME(RTimeHoursType::Convert(ts_val));
+		return RIntervalHoursType::IsNull(ts_val) ? Value(LogicalType::INTERVAL) : Value::INTERVAL(RIntervalHoursType::Convert(ts_val));
 	}
-	case RType::TIME_DAYS: {
+	case RType::INTERVAL_DAYS: {
 		auto ts_val = NUMERIC_POINTER(valsexp)[idx];
-		return RTimeDaysType::IsNull(ts_val) ? Value(LogicalType::TIME) : Value::TIME(RTimeDaysType::Convert(ts_val));
+		return RIntervalDaysType::IsNull(ts_val) ? Value(LogicalType::INTERVAL) : Value::INTERVAL(RIntervalDaysType::Convert(ts_val));
 	}
-	case RType::TIME_WEEKS: {
+	case RType::INTERVAL_WEEKS: {
 		auto ts_val = NUMERIC_POINTER(valsexp)[idx];
-		return RTimeWeeksType::IsNull(ts_val) ? Value(LogicalType::TIME) : Value::TIME(RTimeWeeksType::Convert(ts_val));
+		return RIntervalWeeksType::IsNull(ts_val) ? Value(LogicalType::INTERVAL) : Value::INTERVAL(RIntervalWeeksType::Convert(ts_val));
 	}
-	case RType::TIME_SECONDS_INTEGER: {
+	case RType::INTERVAL_SECONDS_INTEGER: {
 		auto ts_val = INTEGER_POINTER(valsexp)[idx];
-		return RIntegerType::IsNull(ts_val) ? Value(LogicalType::TIME) : Value::TIME(RTimeSecondsType::Convert(ts_val));
+		return RIntegerType::IsNull(ts_val) ? Value(LogicalType::INTERVAL) : Value::INTERVAL(RIntervalSecondsType::Convert(ts_val));
 	}
-	case RType::TIME_MINUTES_INTEGER: {
+	case RType::INTERVAL_MINUTES_INTEGER: {
 		auto ts_val = INTEGER_POINTER(valsexp)[idx];
-		return RIntegerType::IsNull(ts_val) ? Value(LogicalType::TIME) : Value::TIME(RTimeMinutesType::Convert(ts_val));
+		return RIntegerType::IsNull(ts_val) ? Value(LogicalType::INTERVAL) : Value::INTERVAL(RIntervalMinutesType::Convert(ts_val));
 	}
-	case RType::TIME_HOURS_INTEGER: {
+	case RType::INTERVAL_HOURS_INTEGER: {
 		auto ts_val = INTEGER_POINTER(valsexp)[idx];
-		return RIntegerType::IsNull(ts_val) ? Value(LogicalType::TIME) : Value::TIME(RTimeHoursType::Convert(ts_val));
+		return RIntegerType::IsNull(ts_val) ? Value(LogicalType::INTERVAL) : Value::INTERVAL(RIntervalHoursType::Convert(ts_val));
 	}
-	case RType::TIME_DAYS_INTEGER: {
+	case RType::INTERVAL_DAYS_INTEGER: {
 		auto ts_val = INTEGER_POINTER(valsexp)[idx];
-		return RIntegerType::IsNull(ts_val) ? Value(LogicalType::TIME) : Value::TIME(RTimeDaysType::Convert(ts_val));
+		return RIntegerType::IsNull(ts_val) ? Value(LogicalType::INTERVAL) : Value::INTERVAL(RIntervalDaysType::Convert(ts_val));
 	}
-	case RType::TIME_WEEKS_INTEGER: {
+	case RType::INTERVAL_WEEKS_INTEGER: {
 		auto ts_val = INTEGER_POINTER(valsexp)[idx];
-		return RIntegerType::IsNull(ts_val) ? Value(LogicalType::TIME) : Value::TIME(RTimeWeeksType::Convert(ts_val));
+		return RIntegerType::IsNull(ts_val) ? Value(LogicalType::INTERVAL) : Value::INTERVAL(RIntervalWeeksType::Convert(ts_val));
 	}
 	case RType::LIST_OF_NULLS:
 		// Performance shortcut: this corresponds to the RType::BLOB case,
@@ -292,4 +293,15 @@ SEXP RApiTypes::ValueToSexp(Value &val, string &timezone_config) {
 	default:
 		throw NotImplementedException("Can't convert %s of type %s", val.ToString(), val.type().ToString());
 	}
+}
+
+[[cpp11::register]] void rapi_load_rfuns(duckdb::db_eptr_t dual) {
+	if (!dual || !dual.get()) {
+		cpp11::stop("rapi_lock: Invalid database reference");
+	}
+	auto db = dual->get();
+	if (!db || !db->db) {
+		cpp11::stop("rapi_connect: Database already closed");
+	}
+	db->db->LoadExtension<RfunsExtension>();
 }

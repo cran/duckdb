@@ -17,6 +17,10 @@ dbQuoteLiteral__duckdb_connection <- function(conn, x, ...) {
   }
 
   if (inherits(x, "POSIXt")) {
+    if (length(x) == 0) {
+      return(SQL(character()))
+    }
+
     out <- dbQuoteString(
       conn,
       strftime(as.POSIXct(x), "%Y-%m-%d %H:%M:%S", tz = "UTC")
@@ -26,13 +30,26 @@ dbQuoteLiteral__duckdb_connection <- function(conn, x, ...) {
   }
 
   if (inherits(x, "Date")) {
+    if (length(x) == 0) {
+      return(SQL(character()))
+    }
+
     out <- callNextMethod()
     return(SQL(paste0(out, "::date")))
   }
 
   if (inherits(x, "difftime")) {
-    out <- callNextMethod()
-    return(SQL(paste0(out, "::time")))
+    if (length(x) == 0) {
+      return(SQL(character()))
+    }
+
+    units(x) <- "secs"
+    value <- round(as.numeric(x) * 1000000)
+    value[!is.finite(x)] <- NA
+
+    out <- paste0("to_microseconds(", formatC(value, format = "f", digits = 0), ")")
+    out[is.na(value)] <- "NULL"
+    return(SQL(out))
   }
 
   if (is.list(x)) {

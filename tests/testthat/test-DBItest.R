@@ -141,7 +141,20 @@ if (rlang::is_installed("DBItest")) DBItest::test_all(c(
     "list_objects_features",
     "remove_table_list",
     "remove_table_other_con",
-    "exists_table_list"
+    "exists_table_list",
+    # 1.8.1
+    "write_table_name_quoted",
+    "remove_table_name_quoted",
+    "arrow_write_table_arrow_name_quoted",
+    "arrow_write_table_arrow_roundtrip_keywords",
+    "arrow_write_table_arrow_roundtrip_quotes_column_names",
+    "arrow_write_table_arrow_roundtrip_logical",
+    "arrow_write_table_arrow_roundtrip_character",
+    "arrow_write_table_arrow_roundtrip_character_native",
+    "arrow_write_table_arrow_roundtrip_factor",
+    "arrow_write_table_arrow_roundtrip_blob",
+    "arrow_write_table_arrow_roundtrip_timestamp",
+    NULL
   ),
 
   "package_name", # wontfix
@@ -184,5 +197,10 @@ if (rlang::is_installed("DBItest")) DBItest::test_all(c(
   "write_table_row_names_na_missing",
   "append_roundtrip_factor",
   "bind_factor",
+  "arrow_bind_factor",
+  "arrow_send_query_stale_warning", # wontfix
+  "arrow_send_query_only_one_result_set", # wontfix
+  "arrow_write_table_arrow_roundtrip_timestamp_extended", # precision
+  "arrow_append_table_arrow_roundtrip_timestamp_extended", # precision
   NULL
 ))
