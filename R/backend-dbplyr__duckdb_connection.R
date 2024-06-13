@@ -79,6 +79,12 @@ duckdb_grepl <- function(pattern, x, ignore.case = FALSE, perl = FALSE, fixed = 
 
 duckdb_n_distinct <- function(..., na.rm = FALSE) {
   sql <- pkg_method("sql", "dbplyr")
+  check_dots_unnamed <- pkg_method("check_dots_unnamed", "rlang")
+
+  if (missing(...)) {
+    stop("`...` is absent, but must be supplied.")
+  }
+  check_dots_unnamed()
 
   if (!identical(na.rm, FALSE)) {
     stop("Parameter `na.rm = TRUE` in n_distinct() is currently not supported in DuckDB backend.", call. = FALSE)
@@ -108,7 +114,7 @@ sql_translation.duckdb_connection <- function(con) {
   win_aggregate_2 <- pkg_method("win_aggregate_2", "dbplyr")
   win_over <- pkg_method("win_over", "dbplyr")
   win_current_order <- pkg_method("win_current_order", "dbplyr")
-  win_current_group <- pkg_method("win_current_order", "dbplyr")
+  win_current_group <- pkg_method("win_current_group", "dbplyr")
 
 
   base_scalar <- pkg_method("base_scalar", "dbplyr")
@@ -160,7 +166,7 @@ sql_translation.duckdb_connection <- function(con) {
       regexpr = function(p, x) {
         build_sql("(CASE WHEN REGEXP_MATCHES(", x, ", ", p, ") THEN (LENGTH(LIST_EXTRACT(STRING_SPLIT_REGEX(", x, ", ", p, "), 0))+1) ELSE -1 END)")
       },
-      round = function(x, digits) sql_expr(ROUND(!!x, CAST(ROUND((!!digits), 0L) %AS% INTEGER))),
+      round = function(x, digits = 0) sql_expr(ROUND_EVEN(!!x, CAST(ROUND((!!digits), 0L) %AS% INTEGER))),
       as.Date = sql_cast("DATE"),
       as.POSIXct = sql_cast("TIMESTAMP"),
 
@@ -266,6 +272,36 @@ sql_translation.duckdb_connection <- function(con) {
       },
       paste = sql_paste(" "),
       paste0 = sql_paste(""),
+
+      # clock
+      add_days = function(x, n, ...) {
+        build_sql("DATE_ADD(", !!x, ", INTERVAL '", n ," day')")
+      },
+      add_years = function(x, n, ...) {
+        build_sql("DATE_ADD(", !!x, ", INTERVAL '", n ," year')")
+      },
+      get_year = function(x) {
+        build_sql("DATE_PART('year', ", !!x, ")")
+      },
+      get_month = function(x) {
+        build_sql("DATE_PART('month', ", !!x, ")")
+      },
+      get_day = function(x) {
+        build_sql("DATE_PART('day', ", !!x, ")")
+      },
+      date_count_between = function(start, end, precision, ..., n = 1L){
+
+        rlang::check_dots_empty()
+        if (precision != "day") {
+          stop('The only supported value for `precision` on SQL backends is "day"')
+        }
+        if (n != 1) {
+          stop('The only supported value for `n` on SQL backends is "1"')
+        }
+
+        build_sql("DATEDIFF('day', ", !!start, ", " ,!!end, ")")
+
+      },
 
       # stringr functions
       str_c = sql_paste(""),
@@ -444,4 +480,4 @@ tbl_query <- function(src, query, ..., cache = FALSE) {
 }
 
 # Needed to suppress the R CHECK notes (due to the use of sql_expr)
-utils::globalVariables(c("REGEXP_MATCHES", "CAST", "%AS%", "INTEGER", "XOR", "%<<%", "%>>%", "LN", "LOG", "ROUND", "EXTRACT", "%FROM%", "MONTH", "STRFTIME", "QUARTER", "YEAR", "DATE_TRUNC", "DATE", "DOY", "TO_SECONDS", "BIGINT", "TO_MINUTES", "TO_HOURS", "TO_DAYS", "TO_WEEKS", "TO_MONTHS", "TO_YEARS", "STRPOS", "NOT", "REGEXP_REPLACE", "TRIM", "LPAD", "RPAD", "%||%", "REPEAT", "LENGTH", "STRING_AGG", "GREATEST", "LIST_EXTRACT", "LOG10", "LOG2", "STRING_SPLIT_REGEX", "FLOOR", "FMOD", "FDIV"))
+utils::globalVariables(c("REGEXP_MATCHES", "CAST", "%AS%", "INTEGER", "XOR", "%<<%", "%>>%", "LN", "LOG", "ROUND", "ROUND_EVEN", "EXTRACT", "%FROM%", "MONTH", "STRFTIME", "QUARTER", "YEAR", "DATE_TRUNC", "DATE", "DOY", "TO_SECONDS", "BIGINT", "TO_MINUTES", "TO_HOURS", "TO_DAYS", "TO_WEEKS", "TO_MONTHS", "TO_YEARS", "STRPOS", "NOT", "REGEXP_REPLACE", "TRIM", "LPAD", "RPAD", "%||%", "REPEAT", "LENGTH", "STRING_AGG", "GREATEST", "LIST_EXTRACT", "LOG10", "LOG2", "STRING_SPLIT_REGEX", "FLOOR", "FMOD", "FDIV"))

@@ -29,8 +29,10 @@ struct DBWrapper {
 template <class T>
 class DualWrapper {
 public:
-	DualWrapper(T *db) : precious_(db) {}
-	DualWrapper(std::shared_ptr<T> db) : precious_(db) {}
+	DualWrapper(T *db) : precious_(db) {
+	}
+	DualWrapper(std::shared_ptr<T> db) : precious_(db) {
+	}
 	DualWrapper(DualWrapper *dual) : precious_(dual->get()) {
 		if (!precious_) {
 			cpp11::stop("dual is already released");
@@ -101,9 +103,9 @@ struct RStatement {
 };
 
 struct RelationWrapper {
-	RelationWrapper(std::shared_ptr<Relation> rel_p) : rel(std::move(rel_p)) {
+	RelationWrapper(duckdb::shared_ptr<Relation> rel_p) : rel(std::move(rel_p)) {
 	}
-	shared_ptr<Relation> rel;
+	duckdb::shared_ptr<Relation> rel;
 };
 
 typedef cpp11::external_pointer<ParsedExpression> expr_extptr_t;
@@ -118,8 +120,7 @@ struct RQueryResult {
 typedef cpp11::external_pointer<RQueryResult> rqry_eptr_t;
 
 // internal
-unique_ptr<TableRef> ArrowScanReplacement(ClientContext &context, const std::string &table_name,
-                                          ReplacementScanData *data);
+unique_ptr<TableRef> ArrowScanReplacement(ClientContext &context, ReplacementScanInput &input, optional_ptr<ReplacementScanData> data);
 
 struct ArrowScanReplacementData : public ReplacementScanData {
 	DBWrapper *wrapper;

@@ -1,12 +1,12 @@
-#include "duckdb/core_functions/aggregate/distributive_functions.hpp"
 #include "duckdb/common/exception.hpp"
+#include "duckdb/common/operator/comparison_operators.hpp"
 #include "duckdb/common/vector_operations/vector_operations.hpp"
+#include "duckdb/core_functions/aggregate/distributive_functions.hpp"
 #include "duckdb/function/cast/cast_function_set.hpp"
 #include "duckdb/function/function_set.hpp"
 #include "duckdb/planner/expression/bound_aggregate_expression.hpp"
 #include "duckdb/planner/expression/bound_comparison_expression.hpp"
 #include "duckdb/planner/expression_binder.hpp"
-#include "duckdb/common/operator/comparison_operators.hpp"
 
 namespace duckdb {
 
@@ -164,7 +164,7 @@ struct ArgMinMaxBase {
 		if (!state.is_initialized || state.arg_null) {
 			finalize_data.ReturnNull();
 		} else {
-			STATE::template ReadValue(finalize_data.result, state.arg, target);
+			STATE::template ReadValue<T>(finalize_data.result, state.arg, target);
 		}
 	}
 
@@ -174,7 +174,9 @@ struct ArgMinMaxBase {
 
 	static unique_ptr<FunctionData> Bind(ClientContext &context, AggregateFunction &function,
 	                                     vector<unique_ptr<Expression>> &arguments) {
-		ExpressionBinder::PushCollation(context, arguments[1], arguments[1]->return_type, false);
+		if (arguments[1]->return_type.InternalType() == PhysicalType::VARCHAR) {
+			ExpressionBinder::PushCollation(context, arguments[1], arguments[1]->return_type, false);
+		}
 		function.arguments[0] = arguments[0]->return_type;
 		function.return_type = arguments[0]->return_type;
 		return nullptr;
@@ -246,7 +248,7 @@ struct VectorArgMinMaxBase : ArgMinMaxBase<COMPARATOR, IGNORE_NULL> {
 			return;
 		}
 		if (!target.is_initialized || COMPARATOR::Operation(source.value, target.value)) {
-			STATE::template AssignValue(target.value, source.value);
+			STATE::template AssignValue<typename STATE::BY_TYPE>(target.value, source.value);
 			AssignVector(target, *source.arg, source.arg_null, 0);
 			target.is_initialized = true;
 		}
@@ -318,9 +320,7 @@ AggregateFunction GetArgMinMaxFunctionInternal(const LogicalType &by_type, const
 	if (type.InternalType() == PhysicalType::VARCHAR || by_type.InternalType() == PhysicalType::VARCHAR) {
 		function.destructor = AggregateFunction::StateDestroy<STATE, OP>;
 	}
-	if (by_type.InternalType() == PhysicalType::VARCHAR) {
-		function.bind = OP::Bind;
-	}
+	function.bind = OP::Bind;
 	return function;
 }
 
@@ -376,6 +376,13 @@ static unique_ptr<FunctionData> BindDecimalArgMinMax(ClientContext &context, Agg
 	idx_t best_target = DConstants::INVALID_INDEX;
 	int64_t lowest_cost = NumericLimits<int64_t>::Maximum();
 	for (idx_t i = 0; i < by_types.size(); ++i) {
+		// Before falling back to casting, check for a physical type match for the by_type
+		if (by_types[i].InternalType() == by_type.InternalType()) {
+			lowest_cost = 0;
+			best_target = DConstants::INVALID_INDEX;
+			break;
+		}
+
 		auto cast_cost = CastFunctionSet::Get(context).ImplicitCastCost(by_type, by_types[i]);
 		if (cast_cost < 0) {
 			continue;

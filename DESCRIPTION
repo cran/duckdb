@@ -1,6 +1,6 @@
 Package: duckdb
 Title: DBI Package for the DuckDB Database Management System
-Version: 0.10.2
+Version: 1.0.0
 Authors@R: c(
     person("Hannes", "Mühleisen", , "hannes@cwi.nl", role = "aut",
            comment = c(ORCID = "0000-0001-8552-0029")),
@@ -42,12 +42,12 @@ URL: https://r.duckdb.org/, https://github.com/duckdb/duckdb-r
 BugReports: https://github.com/duckdb/duckdb-r/issues
 Depends: DBI, R (>= 3.6.0)
 Imports: methods, utils
-Suggests: adbcdrivermanager, arrow (>= 13.0.0), bit64, callr, DBItest,
-        dbplyr, dplyr, rlang, testthat, tibble, vctrs, withr
+Suggests: adbcdrivermanager, arrow (>= 13.0.0), bit64, callr, clock,
+        DBItest, dbplyr, dplyr, rlang, testthat, tibble, vctrs, withr
 Encoding: UTF-8
 RoxygenNote: 7.3.1
 NeedsCompilation: yes
-Packaged: 2024-05-01 14:38:50 UTC; kirill
+Packaged: 2024-06-06 05:00:58 UTC; kirill
 Author: Hannes Mühleisen [aut] (<https://orcid.org/0000-0001-8552-0029>),
   Mark Raasveldt [aut] (<https://orcid.org/0000-0001-5005-6844>),
   Kirill Müller [cre] (<https://orcid.org/0000-0002-1416-3412>),
@@ -77,4 +77,4 @@ Author: Hannes Mühleisen [aut] (<https://orcid.org/0000-0001-8552-0029>),
   PCG Project contributors [cph]
 Maintainer: Kirill Müller <kirill@cynkra.com>
 Repository: CRAN
-Date/Publication: 2024-05-01 23:24:49 UTC
+Date/Publication: 2024-06-13 09:30:03 UTC

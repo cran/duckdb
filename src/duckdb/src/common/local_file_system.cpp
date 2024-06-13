@@ -41,7 +41,11 @@ extern "C" WINBASEAPI BOOL QueryFullProcessImageNameW(HANDLE, DWORD, LPWSTR, PDW
 #endif
 
 #if defined(__linux__)
-#include <linux/falloc.h>
+// See https://man7.org/linux/man-pages/man2/fallocate.2.html
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE /* See feature_test_macros(7) */
+#endif
+#include <fcntl.h>
 #include <libgen.h>
 // See e.g.:
 // https://opensource.apple.com/source/CarbonHeaders/CarbonHeaders-18.1/TargetConditionals.h.auto.html
@@ -380,6 +384,10 @@ unique_ptr<FileHandle> LocalFileSystem::OpenFile(const string &path_p, FileOpenF
 						           "using the -readonly parameter in the CLI";
 					}
 				}
+				rc = close(fd);
+				if (rc == -1) {
+					message += ". Also, failed closing file";
+				}
 				message += ". See also https://duckdb.org/docs/connect/concurrency";
 				throw IOException("Could not set lock on file \"%s\": %s", {{"errno", std::to_string(retained_errno)}},
 				                  path, message);
@@ -391,7 +399,7 @@ unique_ptr<FileHandle> LocalFileSystem::OpenFile(const string &path_p, FileOpenF
 
 void LocalFileSystem::SetFilePointer(FileHandle &handle, idx_t location) {
 	int fd = handle.Cast<UnixFileHandle>().fd;
-	off_t offset = lseek(fd, location, SEEK_SET);
+	off_t offset = lseek(fd, UnsafeNumericCast<off_t>(location), SEEK_SET);
 	if (offset == (off_t)-1) {
 		throw IOException("Could not seek to location %lld for file \"%s\": %s", {{"errno", std::to_string(errno)}},
 		                  location, handle.path, strerror(errno));
@@ -405,14 +413,15 @@ idx_t LocalFileSystem::GetFilePointer(FileHandle &handle) {
 		throw IOException("Could not get file position file \"%s\": %s", {{"errno", std::to_string(errno)}},
 		                  handle.path, strerror(errno));
 	}
-	return position;
+	return UnsafeNumericCast<idx_t>(position);
 }
 
 void LocalFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, idx_t location) {
 	int fd = handle.Cast<UnixFileHandle>().fd;
 	auto read_buffer = char_ptr_cast(buffer);
 	while (nr_bytes > 0) {
-		int64_t bytes_read = pread(fd, read_buffer, nr_bytes, location);
+		int64_t bytes_read =
+		    pread(fd, read_buffer, UnsafeNumericCast<size_t>(nr_bytes), UnsafeNumericCast<off_t>(location));
 		if (bytes_read == -1) {
 			throw IOException("Could not read from file \"%s\": %s", {{"errno", std::to_string(errno)}}, handle.path,
 			                  strerror(errno));
@@ -424,13 +433,13 @@ void LocalFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes, i
 		}
 		read_buffer += bytes_read;
 		nr_bytes -= bytes_read;
-		location += bytes_read;
+		location += UnsafeNumericCast<idx_t>(bytes_read);
 	}
 }
 
 int64_t LocalFileSystem::Read(FileHandle &handle, void *buffer, int64_t nr_bytes) {
 	int fd = handle.Cast<UnixFileHandle>().fd;
-	int64_t bytes_read = read(fd, buffer, nr_bytes);
+	int64_t bytes_read = read(fd, buffer, UnsafeNumericCast<size_t>(nr_bytes));
 	if (bytes_read == -1) {
 		throw IOException("Could not read from file \"%s\": %s", {{"errno", std::to_string(errno)}}, handle.path,
 		                  strerror(errno));
@@ -442,7 +451,8 @@ void LocalFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, 
 	int fd = handle.Cast<UnixFileHandle>().fd;
 	auto write_buffer = char_ptr_cast(buffer);
 	while (nr_bytes > 0) {
-		int64_t bytes_written = pwrite(fd, write_buffer, nr_bytes, location);
+		int64_t bytes_written =
+		    pwrite(fd, write_buffer, UnsafeNumericCast<size_t>(nr_bytes), UnsafeNumericCast<off_t>(location));
 		if (bytes_written < 0) {
 			throw IOException("Could not write file \"%s\": %s", {{"errno", std::to_string(errno)}}, handle.path,
 			                  strerror(errno));
@@ -453,7 +463,7 @@ void LocalFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_bytes, 
 		}
 		write_buffer += bytes_written;
 		nr_bytes -= bytes_written;
-		location += bytes_written;
+		location += UnsafeNumericCast<idx_t>(bytes_written);
 	}
 }
 
@@ -476,9 +486,14 @@ int64_t LocalFileSystem::Write(FileHandle &handle, void *buffer, int64_t nr_byte
 
 bool LocalFileSystem::Trim(FileHandle &handle, idx_t offset_bytes, idx_t length_bytes) {
 #if defined(__linux__)
+	// FALLOC_FL_PUNCH_HOLE requires glibc 2.18 or up
+#if __GLIBC__ < 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ < 18)
+	return false;
+#else
 	int fd = handle.Cast<UnixFileHandle>().fd;
 	int res = fallocate(fd, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, offset_bytes, length_bytes);
 	return res == 0;
+#endif
 #else
 	return false;
 #endif
@@ -535,7 +550,8 @@ void LocalFileSystem::CreateDirectory(const string &directory, optional_ptr<File
 	if (stat(directory.c_str(), &st) != 0) {
 		/* Directory does not exist. EEXIST for race condition */
 		if (mkdir(directory.c_str(), 0755) != 0 && errno != EEXIST) {
-			throw IOException("Failed to create directory \"%s\"!", {{"errno", std::to_string(errno)}}, directory);
+			throw IOException("Failed to create directory \"%s\": %s", {{"errno", std::to_string(errno)}}, directory,
+			                  strerror(errno));
 		}
 	} else if (!S_ISDIR(st.st_mode)) {
 		throw IOException("Failed to create directory \"%s\": path exists but is not a directory!",
@@ -599,10 +615,15 @@ bool LocalFileSystem::ListFiles(const string &directory, const std::function<voi
 	if (!DirectoryExists(directory, opener)) {
 		return false;
 	}
-	DIR *dir = opendir(directory.c_str());
+
+	auto dir = opendir(directory.c_str());
 	if (!dir) {
 		return false;
 	}
+
+	// RAII wrapper around DIR to automatically free on exceptions in callback
+	std::unique_ptr<DIR, std::function<void(DIR *)>> dir_unique_ptr(dir, [](DIR *d) { closedir(d); });
+
 	struct dirent *ent;
 	// loop over all files in the directory
 	while ((ent = readdir(dir)) != nullptr) {
@@ -625,7 +646,7 @@ bool LocalFileSystem::ListFiles(const string &directory, const std::function<voi
 		// invoke callback
 		callback(name, status.st_mode & S_IFDIR);
 	}
-	closedir(dir);
+
 	return true;
 }
 
@@ -984,7 +1005,8 @@ void LocalFileSystem::CreateDirectory(const string &directory, optional_ptr<File
 	}
 	auto unicode_path = WindowsUtil::UTF8ToUnicode(directory.c_str());
 	if (directory.empty() || !CreateDirectoryW(unicode_path.c_str(), NULL) || !DirectoryExists(directory)) {
-		throw IOException("Could not create directory: \'%s\'", directory.c_str());
+		auto error = LocalFileSystem::GetLastErrorAsString();
+		throw IOException("Failed to create directory \"%s\": %s", directory.c_str(), error);
 	}
 }
 

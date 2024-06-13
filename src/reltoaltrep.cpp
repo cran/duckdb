@@ -52,7 +52,6 @@ void RelToAltrep::Initialize(DllInfo *dll) {
 	R_set_altvec_Dataptr_method(list_class, VectorDataptr);
 	R_set_altlist_Elt_method(list_class, VectorListElt);
 #endif
-
 }
 
 template <class T>
@@ -80,7 +79,7 @@ struct AltrepRelationWrapper {
 		return GetFromExternalPtr<AltrepRelationWrapper>(x);
 	}
 
-	AltrepRelationWrapper(shared_ptr<Relation> rel_p) : rel(rel_p) {
+	AltrepRelationWrapper(duckdb::shared_ptr<Relation> rel_p) : rel(rel_p) {
 	}
 
 	bool HasQueryResult() const {
@@ -103,13 +102,13 @@ struct AltrepRelationWrapper {
 		return (MaterializedQueryResult *)res.get();
 	}
 
-	shared_ptr<Relation> rel;
+	duckdb::shared_ptr<Relation> rel;
 	duckdb::unique_ptr<QueryResult> res;
 };
 
 struct AltrepRownamesWrapper {
 
-	AltrepRownamesWrapper(shared_ptr<AltrepRelationWrapper> rel_p) : rel(rel_p) {
+	AltrepRownamesWrapper(duckdb::shared_ptr<AltrepRelationWrapper> rel_p) : rel(rel_p) {
 		rowlen_data[0] = NA_INTEGER;
 	}
 
@@ -118,11 +117,11 @@ struct AltrepRownamesWrapper {
 	}
 
 	int32_t rowlen_data[2];
-	shared_ptr<AltrepRelationWrapper> rel;
+	duckdb::shared_ptr<AltrepRelationWrapper> rel;
 };
 
 struct AltrepVectorWrapper {
-	AltrepVectorWrapper(shared_ptr<AltrepRelationWrapper> rel_p, idx_t column_index_p)
+	AltrepVectorWrapper(duckdb::shared_ptr<AltrepRelationWrapper> rel_p, idx_t column_index_p)
 	    : rel(rel_p), column_index(column_index_p) {
 	}
 
@@ -149,7 +148,7 @@ struct AltrepVectorWrapper {
 		return transformed_vector;
 	}
 
-	shared_ptr<AltrepRelationWrapper> rel;
+	duckdb::shared_ptr<AltrepRelationWrapper> rel;
 	idx_t column_index;
 	cpp11::sexp transformed_vector;
 };
@@ -299,7 +298,7 @@ static R_altrep_class_t LogicalTypeToAltrepType(const LogicalType &type) {
 	auto drel = rel->rel;
 	auto ncols = drel->Columns().size();
 
-	auto relation_wrapper = make_shared<AltrepRelationWrapper>(drel);
+	auto relation_wrapper = make_shared_ptr<AltrepRelationWrapper>(drel);
 
 	cpp11::writable::list data_frame;
 	data_frame.reserve(ncols);
