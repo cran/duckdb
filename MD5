@@ -1,7 +1,7 @@
-06397f04c42500dac0de054d73dfc78c *DESCRIPTION
+f4b83c52f99e876c302fef083e9f6b39 *DESCRIPTION
 6793c89d1af721728c4d58c99d5b9d30 *LICENSE
 0aded39c576773a773ad31e20ba0a979 *NAMESPACE
-f7ac68a3cc9c9af9498a7da0fb74f16b *NEWS.md
+823203099b35b8f3e4a577f3e6a193e6 *NEWS.md
 0d5e0244a04f4d2ffb2f358d55efe1be *R/Connection.R
 ea3947296fb5f52111b1275acd16fe49 *R/Driver.R
 9898db7b25e8cbb8dc63f70652560ef8 *R/Result.R
@@ -2937,6 +2937,7 @@ fda20bd70c2d25736168fabfa0a25c22 *src/include/sources.mk
 540a24da72e40da4cd982ecc35e1792d *src/include/to-tar-win.mk
 0a69dc5e621cdc9f768da37c0b58df86 *src/include/to-tar.mk
 984abd79d54c941092c68a5570861648 *src/include/typesr.hpp
+4593d8981b63da1416d83847b9a1cab8 *src/install.libs.R
 10db073488cd2169cdeb3766530cffe7 *src/librstrtmgr.a.gz
 04ca60857c26d0a030a177d370759f01 *src/register.cpp
 6738c0818d1816c0a35077de0eefe1e8 *src/relational.cpp
