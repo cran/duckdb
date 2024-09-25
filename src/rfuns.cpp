@@ -245,7 +245,7 @@ void isna_double_loop(idx_t count, const double* data, bool* result_data, Validi
 		idx_t next = MinValue<idx_t>(base_idx + ValidityMask::BITS_PER_VALUE, count);
 
 		if (ValidityMask::AllValid(validity_entry)) {
-			// all valid: check with isnan()
+			// all valid: check with std::isnan()
 			for (; base_idx < next; base_idx++) {
 				result_data[base_idx] = std::isnan(data[base_idx]);
 			}
@@ -329,7 +329,7 @@ void isna_any_loop(idx_t count, bool* result_data, ValidityMask mask) {
 		idx_t next = MinValue<idx_t>(base_idx + ValidityMask::BITS_PER_VALUE, count);
 
 		if (ValidityMask::AllValid(validity_entry)) {
-			// all valid: check with isnan()
+			// all valid: check with std::isnan()
 			for (; base_idx < next; base_idx++) {
 				result_data[base_idx] = false;
 			}
@@ -558,6 +558,8 @@ AggregateFunctionSet base_r_max() {
 }
 #include "rfuns_extension.hpp"
 #include "duckdb/parser/parsed_data/create_scalar_function_info.hpp"
+#include "duckdb/common/operator/string_cast.hpp"
+#include "duckdb/common/operator/double_cast_operator.hpp"
 
 #include <math.h>
 #include <climits>
@@ -636,21 +638,8 @@ struct RelopDispatch {
 template <typename LHS, typename RHS, Relop OP>
 inline bool relop(LHS lhs, RHS rhs);
 
-// borrowed from EncodeInteger
-string_t to_string(int x) {
-	char s[100];
-	snprintf(s, sizeof(s), "%d", x);
-	return string_t(s);
-}
-
-string_t to_string(bool x) {
+string_t bool_to_string(bool x) {
 	return string_t(x ? "TRUE" : "FALSE");
-}
-
-string_t to_string(double x) {
-	char s[100];
-	snprintf(s, sizeof(s), "%.17g", x);
-	return string_t(s);
 }
 
 template <Relop OP>
@@ -681,17 +670,17 @@ struct RelopDispatch<timestamp_t, string_t, OP> {
 	}
 };
 
-template <typename LHS, Relop OP>
-struct RelopDispatch<LHS, string_t, OP> {
-	inline bool operator()(LHS lhs, string_t rhs) {
-		return SimpleDispatch<string_t, string_t, OP>()(to_string(lhs), rhs);
+template <Relop OP>
+struct RelopDispatch<bool, string_t, OP> {
+	inline bool operator()(bool lhs, string_t rhs) {
+		return SimpleDispatch<string_t, string_t, OP>()(bool_to_string(lhs), rhs);
 	}
 };
 
-template <typename RHS, Relop OP>
-struct RelopDispatch<string_t, RHS, OP> {
-	inline bool operator()(string_t lhs, RHS rhs) {
-		return SimpleDispatch<string_t, string_t, OP>()(lhs, to_string(rhs));
+template <Relop OP>
+struct RelopDispatch<string_t, bool, OP> {
+	inline bool operator()(string_t lhs, bool rhs) {
+		return SimpleDispatch<string_t, string_t, OP>()(lhs, bool_to_string(rhs));
 	}
 };
 
@@ -786,15 +775,11 @@ ScalarFunctionSet base_r_relop(string name) {
 	set.AddFunction(RELOP_VARIANT(DOUBLE, BOOLEAN));
 	set.AddFunction(RELOP_VARIANT(BOOLEAN, DOUBLE));
 
-	set.AddFunction(RELOP_VARIANT(VARCHAR, INTEGER));
-	set.AddFunction(RELOP_VARIANT(INTEGER, VARCHAR));
 	set.AddFunction(RELOP_VARIANT(VARCHAR, BOOLEAN));
 	set.AddFunction(RELOP_VARIANT(BOOLEAN, VARCHAR));
 
 	set.AddFunction(RELOP_VARIANT(DOUBLE, DOUBLE));
 	set.AddFunction(RELOP_VARIANT(VARCHAR, VARCHAR));
-	set.AddFunction(RELOP_VARIANT(VARCHAR, DOUBLE));
-	set.AddFunction(RELOP_VARIANT(DOUBLE, VARCHAR));
 
 	set.AddFunction(RELOP_VARIANT(TIMESTAMP, TIMESTAMP));
 	set.AddFunction(RELOP_VARIANT(DATE, DATE));
@@ -804,6 +789,11 @@ ScalarFunctionSet base_r_relop(string name) {
 
 	set.AddFunction(RELOP_VARIANT(TIMESTAMP, VARCHAR));
 	set.AddFunction(RELOP_VARIANT(VARCHAR, TIMESTAMP));
+
+	set.AddFunction(RELOP_VARIANT_BIND_FAIL(VARCHAR, INTEGER, "Comparing strings and integers is not supported"));
+	set.AddFunction(RELOP_VARIANT_BIND_FAIL(INTEGER, VARCHAR, "Comparing strings and integers is not supported"));
+	set.AddFunction(RELOP_VARIANT_BIND_FAIL(VARCHAR, DOUBLE , "Comparing strings and doubles is not supported"));
+	set.AddFunction(RELOP_VARIANT_BIND_FAIL(DOUBLE, VARCHAR, "Comparing strings and doubles is not supported"));
 
 	set.AddFunction(RELOP_VARIANT_BIND_FAIL(TIMESTAMP, DATE, "Comparing times and dates is not supported"));
 	set.AddFunction(RELOP_VARIANT_BIND_FAIL(DATE, TIMESTAMP, "Comparing dates and times is not supported"));
@@ -931,6 +921,7 @@ struct RSumOperation {
 
 	template <class STATE>
 	static void Initialize(STATE &state) {
+		state.value = 0;
 		state.is_set = false;
 		state.is_null = false;
 	}
@@ -990,10 +981,10 @@ unique_ptr<FunctionData> BindRSum_dispatch(ClientContext &context, AggregateFunc
 		function = AggregateFunction::UnaryAggregate<RSumKeepNaState<double>, double, double, RSumOperation<RegularAdd, NA_RM>>(type, type);
 		break;
 	case LogicalTypeId::INTEGER:
-		function = AggregateFunction::UnaryAggregate<RSumKeepNaState<hugeint_t>, int32_t, hugeint_t, RSumOperation<HugeintAdd, NA_RM>>(type, type);
+		function = AggregateFunction::UnaryAggregate<RSumKeepNaState<double>, int32_t, double, RSumOperation<RegularAdd, NA_RM>>(type, LogicalTypeId::DOUBLE);
 		break;
 	case LogicalTypeId::BOOLEAN:
-		function = AggregateFunction::UnaryAggregate<RSumKeepNaState<int32_t>, bool, int32_t, RSumOperation<RegularAdd, NA_RM>>(LogicalType::BOOLEAN, LogicalType::INTEGER);
+		function = AggregateFunction::UnaryAggregate<RSumKeepNaState<int32_t>, bool, int32_t, RSumOperation<RegularAdd, NA_RM>>(type, LogicalType::INTEGER);
 		break;
 	default:
 		break;
@@ -1011,8 +1002,7 @@ unique_ptr<FunctionData> BindRSum(ClientContext &context, AggregateFunction &fun
 	}
 }
 
-void add_RSum(AggregateFunctionSet& set, const LogicalType& type) {
-	auto return_type = type == LogicalType::BOOLEAN ? LogicalType::INTEGER : type;
+void add_RSum(AggregateFunctionSet& set, const LogicalType& type, const LogicalType& return_type) {
 	set.AddFunction(AggregateFunction(
 		{type, LogicalType::BOOLEAN}, return_type,
 		nullptr, nullptr, nullptr, nullptr, nullptr, FunctionNullHandling::DEFAULT_NULL_HANDLING, nullptr,
@@ -1029,9 +1019,9 @@ void add_RSum(AggregateFunctionSet& set, const LogicalType& type) {
 AggregateFunctionSet base_r_sum() {
 	AggregateFunctionSet set("r_base::sum");
 
-	add_RSum(set, LogicalType::BOOLEAN);
-	add_RSum(set, LogicalType::INTEGER);
-	add_RSum(set, LogicalType::DOUBLE);
+	add_RSum(set, LogicalType::BOOLEAN, LogicalType::INTEGER);
+	add_RSum(set, LogicalType::INTEGER, LogicalType::DOUBLE);
+	add_RSum(set, LogicalType::DOUBLE, LogicalType::DOUBLE);
 
 	return set;
 }

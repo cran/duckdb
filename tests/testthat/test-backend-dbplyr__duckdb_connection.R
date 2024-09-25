@@ -163,7 +163,7 @@ test_that("custom clock functions translated correctly", {
   )
   db_test_data <- dbplyr::copy_inline(con, test_data)
 
-  test_data <- test_data |>
+  test_data <- test_data %>%
     dplyr::mutate(date_plus_two_days  = clock::add_days(date_1, 2),
            date_plus_two_years = clock::add_years(date_1, 2),
            date_minus_two_days  = clock::add_days(date_1, -2),
@@ -174,7 +174,7 @@ test_that("custom clock functions translated correctly", {
            diff = clock::date_count_between(date_1, date_2, "day"),
            diff2 = clock::date_count_between(date_2, date_1, "day")
            )
-  db_test_data <- db_test_data |>
+  db_test_data <- db_test_data %>%
     dplyr::mutate(date_plus_two_days  = as.Date(clock::add_days(date_1, 2)),
            date_plus_two_years = as.Date(clock::add_years(date_1, 2)),
            date_minus_two_days  = as.Date(clock::add_days(date_1, -2)),
@@ -183,7 +183,7 @@ test_that("custom clock functions translated correctly", {
            month = clock::get_month(date_1),
            year = clock::get_year(date_1),
            diff = clock::date_count_between(date_1, date_2, "day"),
-           diff2 = clock::date_count_between(date_2, date_1, "day")) |>
+           diff2 = clock::date_count_between(date_2, date_1, "day")) %>%
     dplyr::collect()
 
   expect_equal(unclass(test_data), unclass(db_test_data))
@@ -281,6 +281,9 @@ test_that("aggregators translated correctly", {
   expect_equal(translate(n_distinct(x), window = FALSE), sql(r"{COUNT(DISTINCT row(x))}"))
   expect_equal(translate(n_distinct(x), window = TRUE), sql(r"{COUNT(DISTINCT row(x)) OVER ()}"))
   expect_equal(translate(n_distinct(x), window = TRUE, vars_group = "y"), sql(r"{COUNT(DISTINCT row(x)) OVER (PARTITION BY y)}"))
+  expect_equal(translate(n_distinct(x, na.rm = TRUE), window = FALSE), sql(r"{COUNT(DISTINCT x)}"))
+  expect_equal(translate(n_distinct(x, na.rm = TRUE), window = TRUE), sql(r"{COUNT(DISTINCT x) OVER ()}"))
+  expect_equal(translate(n_distinct(x, na.rm = TRUE), window = TRUE, vars_group = "y"), sql(r"{COUNT(DISTINCT x) OVER (PARTITION BY y)}"))
 })
 
 test_that("two variable aggregates are translated correctly", {
@@ -317,8 +320,17 @@ test_that("n_distinct() computations are correct", {
   df <- tbl(con, "df")
   df_na <- tbl(con, "df_na")
 
+  expect_equal(
+    pull(summarize(df, n = n_distinct(x, na.rm = TRUE)), n),
+    2
+  )
+  expect_equal(
+    pull(summarize(df_na, n = n_distinct(x, na.rm = TRUE)), n),
+    2
+  )
+
   expect_error(
-    pull(summarize(df, n = n_distinct(x, na.rm = TRUE)), n)
+    pull(summarize(df, n = n_distinct(x, y, na.rm = TRUE)), n)
   )
 
   # single column is working as usual

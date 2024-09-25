@@ -64,7 +64,7 @@ Subsequent connections will silently ignore these flags.}
 \item{timezone_out}{The time zone returned to R, defaults to \code{"UTC"}, which
 is currently the only timezone supported by duckdb.
 If you want to display datetime values in the local timezone,
-set to \code{\link[base:timezones]{base::Sys.timezone()}} or \code{""}.}
+set to \code{\link[=Sys.timezone]{Sys.timezone()}} or \code{""}.}
 
 \item{tz_out_convert}{How to convert timestamp columns to the timezone specified
 in \code{timezone_out}. There are two options: \code{"with"}, and \code{"force"}. If \code{"with"}
@@ -101,7 +101,7 @@ The associated DuckDB database instance is shut down automatically,
 it is no longer necessary to set \code{shutdown = TRUE} or to call \code{duckdb_shutdown()}.
 }
 \examples{
-\dontshow{if (requireNamespace("adbcdrivermanager", quietly = TRUE)) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
+\dontshow{if (requireNamespace("adbcdrivermanager", quietly = TRUE)) withAutoprint(\{ # examplesIf}
 library(adbcdrivermanager)
 with_adbc(db <- adbc_database_init(duckdb_adbc()), {
   as.data.frame(read_adbc(db, "SELECT 1 as one;"))

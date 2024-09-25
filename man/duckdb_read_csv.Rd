@@ -45,7 +45,7 @@ duckdb_read_csv(
 
 \item{transaction}{Should a transaction be used for the entire operation}
 
-\item{...}{Passed on to \code{\link[utils:read.table]{utils::read.csv()}}}
+\item{...}{Passed on to \code{\link[=read.csv]{read.csv()}}}
 }
 \value{
 The number of rows in the resulted table, invisibly.
@@ -55,7 +55,7 @@ Directly reads a CSV file into DuckDB, tries to detect and create the correct sc
 This usually is much faster than reading the data into R and writing it to DuckDB.
 }
 \examples{
-\dontshow{if (duckdb:::TEST_RE2) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
+\dontshow{if (duckdb:::TEST_RE2) withAutoprint(\{ # examplesIf}
 con <- dbConnect(duckdb())
 
 data <- data.frame(a = 1:3, b = letters[1:3])

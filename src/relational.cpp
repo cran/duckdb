@@ -490,12 +490,20 @@ static SEXP result_to_df(duckdb::unique_ptr<QueryResult> res) {
 	return make_external_prot<RelationWrapper>("duckdb_relation", prot, symdiff);
 }
 
+[[cpp11::register]] SEXP rapi_rel_from_sql(duckdb::conn_eptr_t con, const std::string sql) {
+	if (!con || !con.get() || !con->conn) {
+		stop("rel_from_table: Invalid connection");
+	}
+	auto rel = con->conn->RelationFromQuery(sql);
+	cpp11::writable::list prot = {};
+	return make_external_prot<RelationWrapper>("duckdb_relation", prot, std::move(rel));
+}
+
 [[cpp11::register]] SEXP rapi_rel_from_table(duckdb::conn_eptr_t con, const std::string schema_name,
                                              const std::string table_name) {
 	if (!con || !con.get() || !con->conn) {
 		stop("rel_from_table: Invalid connection");
 	}
-	auto desc = make_uniq<TableDescription>();
 	auto rel = con->conn->Table(schema_name, table_name);
 	cpp11::writable::list prot = {};
 	return make_external_prot<RelationWrapper>("duckdb_relation", prot, std::move(rel));
@@ -509,7 +517,7 @@ static SEXP result_to_df(duckdb::unique_ptr<QueryResult> res) {
 	vector<Value> positional_parameters;
 
 	for (sexp parameter_sexp : positional_parameters_sexps) {
-		if (LENGTH(parameter_sexp) < 1) {
+		if (RApiTypes::GetVecSize(parameter_sexp) < 1) {
 			stop("rel_from_table_function: Can't have zero-length parameter");
 		}
 		positional_parameters.push_back(RApiTypes::SexpToValue(parameter_sexp, 0));
@@ -523,7 +531,7 @@ static SEXP result_to_df(duckdb::unique_ptr<QueryResult> res) {
 	}
 	R_xlen_t named_parameter_idx = 0;
 	for (sexp parameter_sexp : named_parameters_sexps) {
-		if (LENGTH(parameter_sexp) != 1) {
+		if (RApiTypes::GetVecSize(parameter_sexp) != 1) {
 			stop("rel_from_table_function: Need scalar parameter");
 		}
 		named_parameters[names[named_parameter_idx]] = RApiTypes::SexpToValue(parameter_sexp, 0);
