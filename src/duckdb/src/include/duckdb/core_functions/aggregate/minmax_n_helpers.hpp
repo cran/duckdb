@@ -1,7 +1,14 @@
 #pragma once
 
-#include "duckdb/common/vector.hpp"
+#include "duckdb/common/common.hpp"
+#include "duckdb/storage/arena_allocator.hpp"
 #include "duckdb/common/algorithm.hpp"
+#include "duckdb/common/pair.hpp"
+#include "duckdb/common/types/string_type.hpp"
+#include "duckdb/common/types/vector.hpp"
+#include "duckdb/common/enums/order_type.hpp"
+#include "duckdb/function/aggregate_function.hpp"
+#include "duckdb/core_functions/create_sort_key.hpp"
 
 namespace duckdb {
 
@@ -33,6 +40,8 @@ struct HeapEntry<string_t> {
 	HeapEntry(HeapEntry &&other) noexcept {
 		if (other.value.IsInlined()) {
 			value = other.value;
+			capacity = 0;
+			allocated_data = nullptr;
 		} else {
 			capacity = other.capacity;
 			allocated_data = other.allocated_data;
@@ -294,11 +303,8 @@ struct MinMaxFallbackValue {
 
 	static void PrepareData(Vector &input, const idx_t count, EXTRA_STATE &extra_state, UnifiedVectorFormat &format) {
 		const OrderModifiers modifiers(OrderType::ASCENDING, OrderByNullType::NULLS_LAST);
-		CreateSortKeyHelpers::CreateSortKey(input, count, modifiers, extra_state);
+		CreateSortKeyHelpers::CreateSortKeyWithValidity(input, extra_state, modifiers, count);
 		input.Flatten(count);
-		extra_state.Flatten(count);
-		// Ensure the validity vectors match, because we want to ignore nulls
-		FlatVector::Validity(extra_state).Initialize(FlatVector::Validity(input));
 		extra_state.ToUnifiedFormat(count, format);
 	}
 };
