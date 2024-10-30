@@ -1,5 +1,6 @@
 #include "cpp11.hpp"
 #include "duckdb.hpp"
+#include "signal.hpp"
 #include "typesr.hpp"
 #include "rapi.hpp"
 
@@ -32,19 +33,6 @@
 using namespace duckdb;
 using namespace cpp11;
 
-template <typename T, typename... ARGS>
-external_pointer<T> make_external(const string &rclass, ARGS &&... args) {
-	auto extptr = external_pointer<T>(new T(std::forward<ARGS>(args)...));
-	((sexp)extptr).attr("class") = rclass;
-	return extptr;
-}
-
-template <typename T, typename... ARGS>
-external_pointer<T> make_external_prot(const string &rclass, SEXP prot, ARGS &&... args) {
-	auto extptr = external_pointer<T>(new T(std::forward<ARGS>(args)...), true, true, prot);
-	((sexp)extptr).attr("class") = rclass;
-	return extptr;
-}
 // DuckDB Expressions
 
 [[cpp11::register]] SEXP rapi_expr_reference(r_vector<r_string> rnames) {
@@ -431,7 +419,17 @@ static SEXP result_to_df(duckdb::unique_ptr<QueryResult> res) {
 }
 
 [[cpp11::register]] SEXP rapi_rel_to_df(duckdb::rel_extptr_t rel) {
-	return result_to_df(rel->rel->Execute());
+	ScopedInterruptHandler signal_handler(rel->rel->context.GetContext());
+
+	auto res = rel->rel->Execute();
+
+	if (signal_handler.HandleInterrupt()) {
+		return R_NilValue;
+	}
+
+	signal_handler.Disable();
+
+	return result_to_df(std::move(res));
 }
 
 [[cpp11::register]] std::string rapi_rel_tostring(duckdb::rel_extptr_t rel) {

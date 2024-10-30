@@ -1,5 +1,36 @@
 <!-- NEWS.md is maintained by https://fledge.cynkra.com, contributors should not edit this file -->
 
+# duckdb 1.1.2
+
+## Features
+
+- Update to duckdb v1.1.2, see <https://github.com/duckdb/duckdb/releases/tag/v1.1.2> for details.
+
+## Features
+
+- Long-running queries can now be canceled immediately with Ctrl + C (terminal) or Escape (RStudio IDE and Workbench) (#514, #515).
+
+- Add `col.types` argument to `duckdb_read_csv()` (#445, @eli-daniels).
+
+- Rethrow errors with rlang if installed (#522).
+
+- Improve error message for parsing erros during statement extraction (tidyverse/duckplyr#219, #521).
+
+## Bug fixes
+
+- Avoid RStudio IDE crashes when ending session with open objects (#520).
+
+- `rfuns` extension: `%in%` works correctly as part of a `&` conjunction (#528).
+
+## Internal
+
+- New interal APIs: `rapi_get_last_rel_mat()`, `rapi_rel_to_altrep(allow_materialization = TRUE)`, `rapi_rel_from_altrep_df(enable_materialization)` (#526).
+
+- xz-compress duckdb sources in the tarball (#530).
+
+- `rfuns` extension: Fix signedness.
+
+
 # duckdb 1.1.1
 
 ## Features
