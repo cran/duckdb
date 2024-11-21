@@ -77,19 +77,41 @@ test_that("we can create various expressions and don't crash", {
 })
 
 test_that("we can create comparison expressions with appropriate operators", {
-  expr_comparison(list(expr_constant(-42), expr_constant(42L)), "=")
-  expr_comparison(list(expr_constant(-42), expr_constant(42L)), "!=")
-  expr_comparison(list(expr_constant(-42), expr_constant(42L)), ">")
-  expr_comparison(list(expr_constant(-42), expr_constant(42L)), "<")
-  expr_comparison(list(expr_constant(-42), expr_constant(42L)), ">=")
-  expr_comparison(list(expr_constant(-42), expr_constant(42L)), "<=")
+  local_edition(3)
+
+  expect_snapshot({
+    expr_comparison("=", list(expr_constant(-42), expr_constant(42L)))
+  })
+  expect_snapshot({
+    expr_comparison("!=", list(expr_constant(-42), expr_constant(42L)))
+  })
+  expect_snapshot({
+    expr_comparison(">", list(expr_constant(-42), expr_constant(42L)))
+  })
+  expect_snapshot({
+    expr_comparison("<", list(expr_constant(-42), expr_constant(42L)))
+  })
+  expect_snapshot({
+    expr_comparison(">=", list(expr_constant(-42), expr_constant(42L)))
+  })
+  expect_snapshot({
+    expr_comparison("<=", list(expr_constant(-42), expr_constant(42L)))
+  })
   expect_true(TRUE)
 })
 
 test_that("we cannot create comparison expressions with inappropriate operators", {
-  expect_error(expr_comparison(list(expr_constant(-42), expr_constant(42L)), "z"))
-  expect_error(expr_comparison(list(expr_constant(-42), expr_constant(42L)), "2"))
-  expect_error(expr_comparison(list(expr_constant(-42), expr_constant(42L)), "-"))
+  local_edition(3)
+
+  expect_snapshot(error = TRUE, {
+    expr_comparison("z", list(expr_constant(-42), expr_constant(42L)))
+  })
+  expect_snapshot(error = TRUE, {
+    expr_comparison("2", list(expr_constant(-42), expr_constant(42L)))
+  })
+  expect_snapshot(error = TRUE, {
+    expr_comparison("-", list(expr_constant(-42), expr_constant(42L)))
+  })
 })
 
 
@@ -140,6 +162,15 @@ test_that("we can cast R strings to DuckDB strings", {
 })
 
 test_that("the altrep-conversion for relations works", {
+  local_edition(3)
+
+  n_callback <- 0
+  last_rel <- NULL
+  rlang::local_options(duckdb.materialize_callback = function(rel) {
+    n_callback <<- n_callback + 1
+    last_rel <<- rel
+  })
+
   iris$Species <- as.character(iris$Species)
   rel <- rel_from_df(con, iris)
   df <- rel_to_altrep(rel)
@@ -148,8 +179,15 @@ test_that("the altrep-conversion for relations works", {
   expect_true(any(grepl("DUCKDB_ALTREP_REL_VECTOR", inspect_output, fixed = TRUE)))
   expect_true(any(grepl("DUCKDB_ALTREP_REL_ROWNAMES", inspect_output, fixed = TRUE)))
   expect_false(df_is_materialized(df))
+  expect_equal(n_callback, 0)
   dim(df)
   expect_true(df_is_materialized(df))
+
+  expect_snapshot(transform = function(x) gsub("0x[0-9a-f]+", "0x...", x), {
+    last_rel
+  })
+
+  expect_equal(n_callback, 1)
   expect_equal(iris, df)
 })
 
@@ -787,8 +825,61 @@ test_that("rel_project does not automatically quote upper-case column names", {
   ref <- expr_reference(names(df))
   exprs <- list(ref)
   proj <- rel_project(rel, exprs)
+  # FIXME: Change to rel_to_altrep() in 1.1.3
   ans <- rapi_rel_to_altrep(proj)
   expect_equal(df, ans)
+})
+
+test_that("rel_tostring()", {
+  local_edition(3)
+
+  df <- data.frame(x = 1)
+  rel <- rel_from_df(con, df)
+  ref <- expr_reference(names(df))
+  exprs <- list(ref)
+  proj <- rel_project(rel, exprs)
+
+  expect_snapshot(transform = function(x) gsub("0x[0-9a-f]+", "0x...", x), {
+    writeLines(rel_tostring(proj))
+  })
+
+  expect_snapshot(transform = function(x) gsub("0x[0-9a-f]+", "0x...", x), {
+    writeLines(rel_tostring(proj, "tree"))
+  })
+})
+
+test_that("rel_explain()", {
+  local_edition(3)
+
+  df <- data.frame(x = 1)
+  rel <- rel_from_df(con, df)
+  ref <- expr_reference(names(df))
+  exprs <- list(ref)
+  proj <- rel_project(rel, exprs)
+
+  expect_snapshot({
+    writeLines(rel_explain_df(proj)[[2]])
+  })
+
+  expect_snapshot({
+    writeLines(rel_explain_df(proj, "analyze")[[2]])
+  })
+
+  expect_snapshot({
+    writeLines(rel_explain_df(proj, "standard", "json")[[2]])
+  })
+
+  expect_snapshot({
+    writeLines(rel_explain_df(proj, "analyze", "json")[[2]])
+  })
+
+  expect_snapshot({
+    writeLines(rel_explain_df(proj, "standard", "html")[[2]])
+  })
+
+  expect_snapshot({
+    writeLines(rel_explain_df(proj, "standard", "graphviz")[[2]])
+  })
 })
 
 test_that("rel_to_sql works for row_number", {
@@ -838,6 +929,7 @@ test_that("we don't crash with evaluation errors", {
     )
   )
 
+  # FIXME: Change to rel_to_altrep() in 1.1.3
   ans <- rapi_rel_to_altrep(rel2)
 
   # This query is supposed to throw a runtime error.
@@ -869,9 +961,18 @@ test_that("we don't crash with evaluation errors", {
     )
   )
 
+  # FIXME: Change to rel_to_altrep() in 1.1.3
   ans <- rapi_rel_to_altrep(rel2)
 
   # This query is supposed to throw a runtime error.
   # If this succeeds, find a new query that throws a runtime error.
   expect_error(nrow(ans), "Error evaluating duckdb query")
+})
+
+test_that("Handle zero-length lists (#186)", {
+  local_edition(3)
+
+  expect_snapshot({
+    expr_constant(list(integer()))
+  })
 })

@@ -1,5 +1,28 @@
 <!-- NEWS.md is maintained by https://fledge.cynkra.com, contributors should not edit this file -->
 
+# duckdb 1.1.3
+
+## Features
+
+- Update to duckdb v1.1.3, see <https://github.com/duckdb/duckdb/releases/tag/v1.1.3> for details.
+
+- New `duckdb.materialize_callback` option, supersedes `get_last_rel()` (#589).
+
+- New `rel_explain_df()` and `rel_tostring()` (#587).
+
+- Handle empty child values for list constants (#186, @romainfrancois).
+
+## Chore
+
+- Undef `TRUE` and `FALSE` (#595).
+
+- Remove `enable_materialization` argument to `rel_from_altrep_df()` in favor of creating a new data frame when needed (#588).
+
+- Flip argument order for `expr_comparison()` (#585).
+
+- Keep `cleanup` files to accommodate different build scenarios (#536).
+
+
 # duckdb 1.1.2
 
 ## Features

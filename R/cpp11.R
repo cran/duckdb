@@ -56,8 +56,8 @@ rapi_expr_constant <- function(val) {
   .Call(`_duckdb_rapi_expr_constant`, val)
 }
 
-rapi_expr_comparison <- function(exprs, cmp_op) {
-  .Call(`_duckdb_rapi_expr_comparison`, exprs, cmp_op)
+rapi_expr_comparison <- function(cmp_op, exprs) {
+  .Call(`_duckdb_rapi_expr_comparison`, cmp_op, exprs)
 }
 
 rapi_expr_function <- function(name, args, order_bys, filter_bys) {
@@ -116,16 +116,16 @@ rapi_rel_to_df <- function(rel) {
   .Call(`_duckdb_rapi_rel_to_df`, rel)
 }
 
-rapi_rel_tostring <- function(rel) {
-  .Call(`_duckdb_rapi_rel_tostring`, rel)
+rapi_rel_tostring <- function(rel, format) {
+  .Call(`_duckdb_rapi_rel_tostring`, rel, format)
 }
 
 rapi_rel_to_sql <- function(rel) {
   .Call(`_duckdb_rapi_rel_to_sql`, rel)
 }
 
-rapi_rel_explain <- function(rel) {
-  .Call(`_duckdb_rapi_rel_explain`, rel)
+rapi_rel_explain <- function(rel, type, format) {
+  .Call(`_duckdb_rapi_rel_explain`, rel, type, format)
 }
 
 rapi_rel_alias <- function(rel) {
@@ -172,17 +172,13 @@ rapi_rel_from_table_function <- function(con, function_name, positional_paramete
   .Call(`_duckdb_rapi_rel_from_table_function`, con, function_name, positional_parameters_sexps, named_parameters_sexps)
 }
 
-rapi_get_last_rel <- function() {
-  .Call(`_duckdb_rapi_get_last_rel`)
-}
-
 # allow_materialization = TRUE: compatibility with duckplyr <= 0.4.1
 rapi_rel_to_altrep <- function(rel, allow_materialization = TRUE) {
   .Call(`_duckdb_rapi_rel_to_altrep`, rel, allow_materialization)
 }
 
-rapi_rel_from_altrep_df <- function(df, strict, allow_materialized, enable_materialization) {
-  .Call(`_duckdb_rapi_rel_from_altrep_df`, df, strict, allow_materialized, enable_materialization)
+rapi_rel_from_altrep_df <- function(df, strict, allow_materialized) {
+  .Call(`_duckdb_rapi_rel_from_altrep_df`, df, strict, allow_materialized)
 }
 
 rapi_release <- function(stmt) {

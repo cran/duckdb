@@ -80,7 +80,8 @@ RStrings::RStrings() {
 	ImportRecordBatch_sym = Rf_install("ImportRecordBatch");
 	ImportRecordBatchReader_sym = Rf_install("ImportRecordBatchReader");
 	Table__from_record_batches_sym = Rf_install("Table__from_record_batches");
-	materialize_sym = Rf_install("duckdb.materialize_message");
+	materialize_message_sym = Rf_install("duckdb.materialize_message");
+	materialize_callback_sym = Rf_install("duckdb.materialize_callback");
 	duckdb_row_names_sym = Rf_install("duckdb_row_names");
 	duckdb_vector_sym = Rf_install("duckdb_vector");
 }
@@ -232,6 +233,9 @@ Value RApiTypes::SexpToValue(SEXP valsexp, R_len_t idx, bool typed_logical_null)
 		for (R_len_t child_idx = 0; child_idx < child_len; ++child_idx) {
 			auto value = SexpToValue(ts_val, child_idx);
 			child_values.push_back(value);
+		}
+		if (child_values.empty()) {
+			return Value::EMPTYLIST(RApiTypes::LogicalTypeFromRType(child_rtype, true));
 		}
 		return Value::LIST(std::move(child_values));
 	}

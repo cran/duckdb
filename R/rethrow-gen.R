@@ -126,9 +126,9 @@ rethrow_rapi_expr_constant <- function(val, call = parent.frame(2)) {
   )
 }
 
-rethrow_rapi_expr_comparison <- function(exprs, cmp_op, call = parent.frame(2)) {
+rethrow_rapi_expr_comparison <- function(cmp_op, exprs, call = parent.frame(2)) {
   rlang::try_fetch(
-    rapi_expr_comparison(exprs, cmp_op),
+    rapi_expr_comparison(cmp_op, exprs),
     error = function(e) {
       rethrow_error_from_rapi(e, call)
     }
@@ -261,9 +261,9 @@ rethrow_rapi_rel_to_df <- function(rel, call = parent.frame(2)) {
   )
 }
 
-rethrow_rapi_rel_tostring <- function(rel, call = parent.frame(2)) {
+rethrow_rapi_rel_tostring <- function(rel, format, call = parent.frame(2)) {
   rlang::try_fetch(
-    rapi_rel_tostring(rel),
+    rapi_rel_tostring(rel, format),
     error = function(e) {
       rethrow_error_from_rapi(e, call)
     }
@@ -279,9 +279,9 @@ rethrow_rapi_rel_to_sql <- function(rel, call = parent.frame(2)) {
   )
 }
 
-rethrow_rapi_rel_explain <- function(rel, call = parent.frame(2)) {
+rethrow_rapi_rel_explain <- function(rel, type, format, call = parent.frame(2)) {
   rlang::try_fetch(
-    rapi_rel_explain(rel),
+    rapi_rel_explain(rel, type, format),
     error = function(e) {
       rethrow_error_from_rapi(e, call)
     }
@@ -387,15 +387,6 @@ rethrow_rapi_rel_from_table_function <- function(con, function_name, positional_
   )
 }
 
-rethrow_rapi_get_last_rel <- function(call = parent.frame(2)) {
-  rlang::try_fetch(
-    rapi_get_last_rel(),
-    error = function(e) {
-      rethrow_error_from_rapi(e, call)
-    }
-  )
-}
-
 rethrow_rapi_rel_to_altrep <- function(rel, allow_materialization = TRUE, call = parent.frame(2)) {
   rlang::try_fetch(
     # duckplyr compat
@@ -406,9 +397,9 @@ rethrow_rapi_rel_to_altrep <- function(rel, allow_materialization = TRUE, call =
   )
 }
 
-rethrow_rapi_rel_from_altrep_df <- function(df, strict, allow_materialized, enable_materialization, call = parent.frame(2)) {
+rethrow_rapi_rel_from_altrep_df <- function(df, strict, allow_materialized, call = parent.frame(2)) {
   rlang::try_fetch(
-    rapi_rel_from_altrep_df(df, strict, allow_materialized, enable_materialization),
+    rapi_rel_from_altrep_df(df, strict, allow_materialized),
     error = function(e) {
       rethrow_error_from_rapi(e, call)
     }
@@ -585,7 +576,6 @@ rethrow_restore <- function() {
   rethrow_rapi_rel_from_sql <<- rapi_rel_from_sql
   rethrow_rapi_rel_from_table <<- rapi_rel_from_table
   rethrow_rapi_rel_from_table_function <<- rapi_rel_from_table_function
-  rethrow_rapi_get_last_rel <<- rapi_get_last_rel
   rethrow_rapi_rel_to_altrep <<- rapi_rel_to_altrep
   rethrow_rapi_rel_from_altrep_df <<- rapi_rel_from_altrep_df
   rethrow_rapi_release <<- rapi_release

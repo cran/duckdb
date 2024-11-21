@@ -33,7 +33,7 @@ expr_constant <- rapi_expr_constant
 #' @return a comparison expression
 #' @noRd
 #' @examples
-#' comp_expr <- expr_comparison(list(expr_constant(-42), expr_constant(42)), ">")
+#' comp_expr <- expr_comparison(">", list(expr_constant(-42), expr_constant(42)))
 expr_comparison <- rapi_expr_comparison
 
 #' Create a function call expression
@@ -86,7 +86,7 @@ rel_from_df <- function(con, df, experimental=FALSE) {
 
 #' @export
 print.duckdb_relation <- function(x, ...) {
-  message("DuckDB Relation: \n", rethrow_rapi_rel_tostring(x))
+  message("DuckDB Relation: \n", rel_tostring(x))
 }
 
 #' @export
@@ -347,8 +347,38 @@ rel_sql <- function(rel, sql) {
 #' rel <- rel_from_df(con, mtcars)
 #' rel_explain(rel)
 rel_explain <- function(rel) {
-  cat(rethrow_rapi_rel_explain(rel)[[2]][[1]])
+  # Legacy
+  cat(rethrow_rapi_rel_explain(rel, "EXPLAIN_STANDARD", "DEFAULT")[[2]][[1]])
   invisible(NULL)
+}
+
+#' Return the EXPLAIN output for a DuckDB relation object as a data frame
+#' @param rel the DuckDB relation object
+#' @noRd
+#' @examples
+#' con <- DBI::dbConnect(duckdb())
+#' rel <- rel_from_df(con, mtcars)
+#' rel_explain(rel)
+rel_explain_df <- function(
+  rel,
+  type = c("standard", "analyze"),
+  format = c("default", "text", "json", "html", "graphviz")
+) {
+  type <- match.arg(type)
+  format <- match.arg(format)
+  rethrow_rapi_rel_explain(rel, paste0("EXPLAIN_", toupper(type)), toupper(format))
+}
+
+#' Format a DuckDB relation object as a string
+#' @param rel the DuckDB relation object
+#' @noRd
+#' @examples
+#' con <- DBI::dbConnect(duckdb())
+#' rel <- rel_from_df(con, mtcars)
+#' rel_tostring(rel)
+rel_tostring <- function(rel, format = c("full", "tree")) {
+  format <- match.arg(format)
+  rethrow_rapi_rel_tostring(rel, format)
 }
 
 #' Get the internal alias for a DuckDB relation object
@@ -392,8 +422,6 @@ rel_to_altrep <- function(rel, allow_materialization = TRUE) {
 #' @param strict whether to throw an error if the data frame is not an altrep
 #'   or if other criteria are not met
 #' @param allow_materialized whether to succeed if the data frame is already materialized
-#' @param enable_materialization set to `TRUE` for side effect: allow materialization of this a data frame
-#'   if it was not allowed previously
 #' @return the relation object
 #' @noRd
 #' @examples
@@ -401,8 +429,8 @@ rel_to_altrep <- function(rel, allow_materialization = TRUE) {
 #' rel <- rel_from_df(con, mtcars)
 #' df = rel_to_altrep(rel)
 #' print(rel_from_altrep_df(df))
-rel_from_altrep_df <- function(df, strict = TRUE, allow_materialized = TRUE, enable_materialization = FALSE) {
-  rethrow_rapi_rel_from_altrep_df(df, strict, allow_materialized, enable_materialization)
+rel_from_altrep_df <- function(df, strict = TRUE, allow_materialized = TRUE) {
+  rethrow_rapi_rel_from_altrep_df(df, strict, allow_materialized)
 }
 
 
@@ -474,8 +502,4 @@ rel_names <- function(rel) {
 
 load_rfuns <- function() {
   rethrow_rapi_load_rfuns()
-}
-
-get_last_rel <- function() {
-  rethrow_rapi_get_last_rel()
 }
