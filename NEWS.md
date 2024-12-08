@@ -1,5 +1,28 @@
 <!-- NEWS.md is maintained by https://fledge.cynkra.com, contributors should not edit this file -->
 
+# duckdb 1.1.3-1
+
+## Features
+
+- With `duckdb(environment_scan = TRUE)`, data frame objects are available as views in duckdb SQL queries (#140, #164).
+
+- Update vendored cpp11 to 0.5.1 (#636).
+
+## Bug fixes
+
+- Make `./cleanup` script reentrant (@Antonov548, #612, #634).
+
+- Fix installation of extensions (#623).
+
+- Fix rchk and UB errors (#635).
+
+- Avoid loading rlang during startup (#601).
+
+## Documentation
+
+- Mention `xz` requirement in `DESCRIPTION`.
+
+
 # duckdb 1.1.3
 
 ## Features
@@ -723,7 +746,7 @@ Major changes:
  - #440 Builds on Solaris & OpenBSD
 
 
-*Note*: This release contains a bug in the Python API that leads to crashes when fetching strings to NumPy/Pandas #447 
+*Note*: This release contains a bug in the Python API that leads to crashes when fetching strings to NumPy/Pandas #447
 
 
 # duckdb 0.1.3
@@ -737,7 +760,7 @@ Major changes:
   * #390 Unused Column & Column Lifetime Optimizers
   * #402 String and compound keys in indices/primary keys
   * #406 Adaptive reordering of filter expressions
-  
+
 
 
 # duckdb 0.1.2
