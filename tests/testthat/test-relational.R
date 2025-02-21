@@ -849,6 +849,7 @@ test_that("rel_tostring()", {
 })
 
 test_that("rel_explain()", {
+  skip_if(getRversion() < "4.2")
   local_edition(3)
 
   df <- data.frame(x = 1)
@@ -997,6 +998,11 @@ test_that("tethering", {
   )
 
   forbid <- rel_to_altrep(rel2, allow_materialization = FALSE)
+  expect_snapshot(error = TRUE, {
+    nrow(forbid)
+  })
+
+  forbid_nrow <- rel_to_altrep(rel2, n_cells = 0)
   expect_snapshot(error = TRUE, {
     nrow(forbid)
   })

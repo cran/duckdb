@@ -1,5 +1,31 @@
 <!-- NEWS.md is maintained by https://fledge.cynkra.com, contributors should not edit this file -->
 
+# duckdb 1.2.0
+
+## Breaking changes
+
+- Breaking change: Remove substrait API: `duckdb_get_substrait()`, `duckdb_get_substrait_json()`, `duckdb_prepare_substrait()`, `duckdb_prepare_substrait_json()` (@pdet, #1021).
+
+## Features
+
+- Update to duckdb v1.2.0, see <https://github.com/duckdb/duckdb/releases/tag/v1.2.0> for details.
+
+- Progress is shown for slow operation (#199, #951, @meztez).
+
+- Add translation for `median()` (@toppyy, #993, #1011).
+
+- Floor sub-day precision date before casting to int (@toppyy, #517, #981).
+
+- Set value returned by `PRAGMA user_agent` to r-dbi (#707, @elefeint).
+
+## Bug fixes
+
+- Remove unconditional use of `CPPHTTPLIB_USE_POLL` to support compilation with R 4.0 and R 4.1 again (@Antonov548, #1043).
+
+- Support reading from multiple Parquet files again (#1015, #1024).
+
+- Fix translation for `add_days()` and `add_years()` clock functions (#976, @IoannaNika).
+
 
 # duckdb 1.1.3-2
 
@@ -12,6 +38,8 @@
 - Sync vendoring script with igraph (#936).
 
 ## Features
+
+- Limit automatic materialization by number of rows or number of cells (#1017).
 
 - New internal `rapi_rel_to_csv()`,`rapi_rel_to_table()`, and `rapi_rel_insert()`; `rapi_rel_to_parquet()` gains `options` argument (#867).
 

@@ -141,11 +141,12 @@ test_that("custom clock functions translated correctly", {
   translate <- function(...) dbplyr::translate_sql(..., con = con)
   sql <- function(...) dbplyr::sql(...)
 
-  expect_equal(translate(add_days(x, 1L)), sql(r"{DATE_ADD(x, INTERVAL '1 day')}"))
-  expect_equal(translate(add_days(x, 2L)), sql(r"{DATE_ADD(x, INTERVAL '2 day')}"))
+  m <- 1
+  expect_equal(translate(add_days(x, m)), sql(r"{DATE_ADD(x, INTERVAL (m) day)}"))
+  expect_equal(translate(add_days(x, 2L)), sql(r"{DATE_ADD(x, INTERVAL (2) day)}"))
 
-  expect_equal(translate(add_years(x, 1L)), sql(r"{DATE_ADD(x, INTERVAL '1 year')}"))
-  expect_equal(translate(add_years(x, 2L)), sql(r"{DATE_ADD(x, INTERVAL '2 year')}"))
+  expect_equal(translate(add_years(x, m)), sql(r"{DATE_ADD(x, INTERVAL (m) year)}"))
+  expect_equal(translate(add_years(x, 2L)), sql(r"{DATE_ADD(x, INTERVAL (2) year)}"))
 
   expect_equal(translate(get_day(x)), sql(r"{DATE_PART('day', x)}"))
   expect_equal(translate(get_month(x)), sql(r"{DATE_PART('month', x)}"))
@@ -261,6 +262,10 @@ test_that("aggregators translated correctly", {
 
   expect_equal(translate(prod(x, na.rm = TRUE), window = FALSE), sql(r"{PRODUCT(x)}"))
   expect_equal(translate(prod(x, na.rm = TRUE), window = TRUE), sql(r"{PRODUCT(x) OVER ()}"))
+
+  expect_equal(translate(median(x, na.rm = TRUE), window = FALSE), sql(r"{MEDIAN(x)}"))
+  expect_equal(translate(median(x, na.rm = TRUE), window = TRUE), sql(r"{MEDIAN(x) OVER ()}"))
+  expect_equal(translate(median(x, na.rm = TRUE), window = TRUE, vars_group="z"), sql(r"{MEDIAN(x) OVER (PARTITION BY z)}"))
 
   expect_equal(translate(sd(x, na.rm = TRUE), window = FALSE), sql(r"{STDDEV(x)}"))
   expect_equal(translate(sd(x, na.rm = TRUE), window = TRUE), sql(r"{STDDEV(x) OVER ()}"))
