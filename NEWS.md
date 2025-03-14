@@ -1,5 +1,32 @@
 <!-- NEWS.md is maintained by https://fledge.cynkra.com, contributors should not edit this file -->
 
+# duckdb 1.2.1
+
+## Features
+
+- Update to duckdb v1.2.1, see <https://github.com/duckdb/duckdb/releases/tag/v1.2.1> for details.
+
+## Bug fixes
+
+- `dbExecute(con, "CALL ...")` no longer attempts to access the resulting data frame. Use `dbGetQuery(con, "CALL ...")` to access the data (#1062, #1080).
+
+- Fix support for the connections pane in RStudio and Positron (@dfalbel, #1063).
+
+## Internal
+
+- New `rel_to_view()` (\#1075).
+
+- New internal `AltrepDataframeRelation`, used with `rel_from_altrep_df(wrap = TRUE)` (#949, #1072).
+
+- Try relational materialization only once (#1066).
+
+## Chore
+
+- Update vendored cpp11 to 0.5.2 (#1068).
+
+- Avoid calls to non-API R functions.
+
+
 # duckdb 1.2.0
 
 ## Breaking changes
@@ -10,7 +37,7 @@
 
 - Update to duckdb v1.2.0, see <https://github.com/duckdb/duckdb/releases/tag/v1.2.0> for details.
 
-- Progress is shown for slow operation (#199, #951, @meztez).
+- Progress is shown for slow operation. This is on by default in interactive mode and can be controlled by setting the `"duckdb.progress_display"` option to a logical scalar (#199, #951, @meztez).
 
 - Add translation for `median()` (@toppyy, #993, #1011).
 

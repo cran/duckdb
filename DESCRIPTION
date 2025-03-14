@@ -1,6 +1,6 @@
 Package: duckdb
 Title: DBI Package for the DuckDB Database Management System
-Version: 1.2.0
+Version: 1.2.1
 Authors@R: c(
     person("Hannes", "Mühleisen", , "hannes@cwi.nl", role = "aut",
            comment = c(ORCID = "0000-0001-8552-0029")),
@@ -49,7 +49,7 @@ Encoding: UTF-8
 RoxygenNote: 7.3.2.9000
 SystemRequirements: xz (for building from source)
 NeedsCompilation: yes
-Packaged: 2025-02-14 18:27:06 UTC; kirill
+Packaged: 2025-03-14 07:05:03 UTC; kirill
 Author: Hannes Mühleisen [aut] (<https://orcid.org/0000-0001-8552-0029>),
   Mark Raasveldt [aut] (<https://orcid.org/0000-0001-5005-6844>),
   Kirill Müller [cre] (<https://orcid.org/0000-0002-1416-3412>),
@@ -79,4 +79,4 @@ Author: Hannes Mühleisen [aut] (<https://orcid.org/0000-0001-8552-0029>),
   PCG Project contributors [cph]
 Maintainer: Kirill Müller <kirill@cynkra.com>
 Repository: CRAN
-Date/Publication: 2025-02-21 00:30:10 UTC
+Date/Publication: 2025-03-14 13:40:02 UTC

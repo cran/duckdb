@@ -372,7 +372,8 @@ test_that("ASOF join works", {
   cond <- list(expr_function("gte", list(expr_reference("ts"), expr_reference("event_ts"))))
   rel <- rel_join(test_df1, test_df2, cond, join_ref_type = "asof")
   rel_proj <- rel_project(rel, list(expr_reference("ts"), expr_reference("event_id")))
-  rel_df <- rel_to_altrep(rel_proj)
+  order <- rel_order(rel_proj, list(expr_reference("ts")))
+  rel_df <- rel_to_altrep(order)
   expected_result <- data.frame(ts = c(1, 2, 3, 4, 5, 6, 7, 8, 9), event_id = c(0, 0, 1, 1, 1, 2, 2, 3, 3))
   expect_equal(expected_result, rel_df)
 })
@@ -976,7 +977,7 @@ test_that("Handle zero-length lists (#186)", {
   })
 })
 
-test_that("tethering", {
+test_that("prudence", {
   local_edition(3)
   withr::local_envvar(NO_COLOR = "true")
 
@@ -1035,4 +1036,13 @@ test_that("tethering", {
   expect_snapshot(error = TRUE, {
     nrow(bad_cells)
   })
+})
+
+test_that("rel_to_view()", {
+  df1 <- data.frame(a = 1:10, b = 1:10)
+  rel1 <- rel_from_df(con, df1)
+  rel_to_view(rel1, "", "test_view", temporary = TRUE)
+
+  expect_equal(dbGetQuery(con, "SELECT * FROM test_view"), df1)
+  expect_error(dbExecute(con, "DROP VIEW test_view"), NA)
 })
