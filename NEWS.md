@@ -1,5 +1,42 @@
 <!-- NEWS.md is maintained by https://fledge.cynkra.com, contributors should not edit this file -->
 
+# duckdb 1.2.2
+
+## Features
+
+- Update to duckdb v1.2.2, see <https://github.com/duckdb/duckdb/releases/tag/v1.2.2> for details.
+
+- Add support for duckdb arrays in R (@joakimlinde, #102, #1090). To enable, connect with `dbConnect(duckdb(), array = "matrix")` (@joakimlinde, #1125).
+
+- Support fractional seconds in `TIME` and `INTERVAL` data (#1109).
+
+- The `autoload_known_extensions` configuration option is now enabled by default (#582, #1084, #1134).
+
+- Mention column name for conversion errors (#1108).
+
+## Chore
+
+- Require R \>= 4.1 (#1087, #1133).
+
+- Types exposed through ALTREP are the same as through DBI (#1111), including `STRUCT`. This enables support more types in upcoming duckplyr versions.
+
+- Perform optional checks for ALTREP compatibility in `rel_from_df()` and `expr_constant()` (#1117).
+
+- Perform time zone conversion in the C++ layer where possible, to support ALTREP (#1130).
+
+- Improve developer experience: `pkgload::load_all()` now works, source files are rebuilt if header files change, configure clangd (#1128).
+
+- Add dots with checks to unexported functions (#1115).
+
+- Clean up edge case for fetching zero rows (#1104).
+
+- Avoid test for timings on CRAN (#1101).
+
+## Documentation
+
+- Tweak README.
+
+
 # duckdb 1.2.1
 
 ## Features

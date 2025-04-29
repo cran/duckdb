@@ -5,7 +5,7 @@ con <- dbConnect(duckdb())
 on.exit(dbDisconnect(con, shutdown = TRUE))
 
 test_that("we can create a relation from a df", {
-  rel <- rel_from_df(con, mtcars)
+  rel <- rel_from_df(con, data.frame(a = 1))
   expect_type(rel, "externalptr")
   expect_s3_class(rel, "duckdb_relation")
 })
@@ -29,8 +29,10 @@ test_that("we won't crash when creating a relation from odd things", {
 })
 
 test_that("we can round-trip a data frame", {
-  expect_equivalent(mtcars, as.data.frame.duckdb_relation(rel_from_df(con, mtcars)))
-  expect_equivalent(iris, as.data.frame.duckdb_relation(rel_from_df(con, iris)))
+  expect_equivalent(
+    data.frame(a = 1:3, b = letters[1:3]),
+    as.data.frame.duckdb_relation(rel_from_df(con, data.frame(a = 1:3, b = letters[1:3])))
+  )
 })
 
 test_that("we can recognize if a df is materialized", {
@@ -192,9 +194,13 @@ test_that("the altrep-conversion for relations works", {
   expect_equal(iris, df)
 })
 
-test_that("the altrep-conversion for relations work for weirdo types", {
-  test_df <- data.frame(col_date = as.Date("2019-11-26"), col_ts = as.POSIXct("2019-11-26 21:11Z", "UTC"), col_factor = factor(c("a")))
-  rel <- rel_from_df(con, test_df)
+test_that("the altrep-conversion for relations work for weirdo types for strict = FALSE", {
+  test_df <- data.frame(
+    col_date = as.Date("2019-11-26"),
+    col_ts = as.POSIXct("2019-11-26 21:11Z", tz = "UTC"),
+    col_factor = factor(c("a"))
+  )
+  rel <- rel_from_df(con, test_df, strict = FALSE)
   df <- rel_to_altrep(rel)
   expect_false(df_is_materialized(df))
   expect_equal(test_df, df)
@@ -1045,4 +1051,142 @@ test_that("rel_to_view()", {
 
   expect_equal(dbGetQuery(con, "SELECT * FROM test_view"), df1)
   expect_error(dbExecute(con, "DROP VIEW test_view"), NA)
+})
+
+test_that("logical", {
+  df1 <- data.frame(a = c(TRUE, FALSE, NA))
+  rel <- rel_from_df(con, df1)
+  expect_equal(rel_to_altrep(rel), df1)
+
+  skip_if_not_installed("vctrs")
+
+  df2 <- vctrs::new_data_frame(list(a = structure(c(TRUE, FALSE, NA), class = "foo")))
+  rel <- rel_from_df(con, df2, strict = FALSE)
+  expect_equal(rel_to_altrep(rel), df1)
+
+  expect_error(rel_from_df(con, df2), "convert")
+})
+
+test_that("integer", {
+  df1 <- data.frame(a = c(1L, 2L, NA))
+  rel <- rel_from_df(con, df1)
+  expect_equal(rel_to_altrep(rel), df1)
+
+  skip_if_not_installed("vctrs")
+
+  df2 <- vctrs::new_data_frame(list(a = structure(c(1L, 2L, NA), class = "foo")))
+  rel <- rel_from_df(con, df2, strict = FALSE)
+  expect_equal(rel_to_altrep(rel), df1)
+
+  expect_error(rel_from_df(con, df2), "convert")
+})
+
+test_that("numeric", {
+  df1 <- data.frame(a = c(1, 2, NA))
+  rel <- rel_from_df(con, df1)
+  expect_equal(rel_to_altrep(rel), df1)
+
+  skip_if_not_installed("vctrs")
+
+  df2 <- vctrs::new_data_frame(list(a = structure(c(1, 2, NA), class = "foo")))
+  rel <- rel_from_df(con, df2, strict = FALSE)
+  expect_equal(rel_to_altrep(rel), df1)
+
+  expect_error(rel_from_df(con, df2), "convert")
+})
+
+test_that("list", {
+  skip_if_not_installed("vctrs")
+  skip_if(getRversion() < "4.3")
+
+  df1 <- vctrs::new_data_frame(list(a = list(1L, 2:3, NULL, 4:6)))
+  rel <- rel_from_df(con, df1)
+  expect_equal(rel_to_altrep(rel), df1)
+
+  df2 <- vctrs::new_data_frame(list(a = structure(list(1L, 2:3, NULL, 4:6), class = "foo")), n = 4L)
+  rel <- rel_from_df(con, df2, strict = FALSE)
+  expect_equal(rel_to_altrep(rel), df1)
+
+  expect_error(rel_from_df(con, df2), "convert")
+})
+
+test_that("Date", {
+  df1 <- data.frame(a = as.Date(c("2020-01-01", "2020-01-02", NA)))
+  rel <- rel_from_df(con, df1)
+  expect_equal(rel_to_altrep(rel), df1)
+
+  skip_if_not_installed("vctrs")
+
+  df2 <- vctrs::new_data_frame(list(a = structure(as.Date(c("2020-01-01", "2020-01-02", NA)), class = c("foo", "Date"))))
+  rel <- rel_from_df(con, df2, strict = FALSE)
+  expect_equal(rel_to_altrep(rel), df1)
+
+  expect_error(rel_from_df(con, df2), "convert")
+})
+
+test_that("difftime", {
+  df1 <- data.frame(a = as.difftime(c(1, 2, NA), units = "secs"))
+  rel <- rel_from_df(con, df1)
+  expect_equal(rel_to_altrep(rel), df1)
+
+  skip_if_not_installed("vctrs")
+
+  df2 <- vctrs::new_data_frame(list(a = structure(as.difftime(c(1, 2, NA), units = "secs"), class = c("foo", "difftime"))))
+  rel <- rel_from_df(con, df2, strict = FALSE)
+  expect_equal(rel_to_altrep(rel), df1)
+
+  expect_error(rel_from_df(con, df2), "convert")
+})
+
+test_that("factor", {
+  df1 <- data.frame(a = factor(c("a", "b", NA)))
+  rel <- rel_from_df(con, df1)
+  expect_equal(rel_to_altrep(rel), df1)
+
+  df2 <- data.frame(a = ordered(c("a", "b", NA)))
+  rel <- rel_from_df(con, df2, strict = FALSE)
+  expect_equal(rel_to_altrep(rel), df1)
+
+  expect_error(rel_from_df(con, df2), "convert")
+})
+
+test_that("data.frame", {
+  skip_if_not_installed("vctrs")
+  skip_if(getRversion() < "4.3")
+
+  df1 <- vctrs::new_data_frame(list(a = data.frame(b = 1:3, c = 4:6)))
+  rel <- rel_from_df(con, df1)
+  expect_equal(rel_to_altrep(rel), df1)
+
+  df2 <- vctrs::new_data_frame(list(a = structure(data.frame(b = 1:3, c = 4:6), class = c("foo", "data.frame"))))
+  rel <- rel_from_df(con, df2, strict = FALSE)
+  expect_equal(rel_to_altrep(rel), df1)
+
+  expect_error(rel_from_df(con, df2), "convert")
+})
+
+test_that("POSIXct", {
+  df1 <- data.frame(a = structure(1745781814.84963, class = c("POSIXct", "POSIXt"), tzone = "UTC"))
+  rel <- rel_from_df(con, df1)
+  expect_equal(rel_to_altrep(rel), df1)
+
+  df2 <- data.frame(a = structure(1745781814.84963, class = c("foo", "POSIXct", "POSIXt")))
+  rel <- rel_from_df(con, df2, strict = FALSE)
+  expect_equal(rel_to_altrep(rel), df1)
+
+  expect_error(rel_from_df(con, df2), "convert")
+
+  df2 <- data.frame(a = structure(1745781814.84963, class = c("foo", "POSIXct", "POSIXt"), tzone = ""))
+  rel <- rel_from_df(con, df2, strict = FALSE)
+  expect_equal(rel_to_altrep(rel), df1)
+
+  expect_error(rel_from_df(con, df2), "convert")
+
+  skip_if_not_installed("vctrs")
+
+  df2 <- data.frame(a = structure(1745781814.84963, class = c("foo", "POSIXct", "POSIXt"), tzone = "UTC"))
+  rel <- rel_from_df(con, df2, strict = FALSE)
+  expect_equal(rel_to_altrep(rel), df1)
+
+  expect_error(rel_from_df(con, df2), "convert")
 })

@@ -37,6 +37,7 @@ R_altrep_class_t RelToAltrep::string_class;
 
 #if defined(R_HAS_ALTLIST)
 R_altrep_class_t RelToAltrep::list_class;
+R_altrep_class_t RelToAltrep::struct_class;
 #endif
 
 const size_t MAX_SIZE_T = std::numeric_limits<size_t>::max();
@@ -77,6 +78,12 @@ void RelToAltrep::Initialize(DllInfo *dll) {
 	R_set_altrep_Length_method(list_class, VectorLength);
 	R_set_altvec_Dataptr_method(list_class, VectorDataptr);
 	R_set_altlist_Elt_method(list_class, VectorListElt);
+
+	struct_class = R_make_altlist_class("reltoaltrep_struct_class", "duckdb", dll);
+	R_set_altrep_Inspect_method(struct_class, RelInspect);
+	R_set_altrep_Length_method(struct_class, StructLength);
+	R_set_altvec_Dataptr_method(struct_class, VectorDataptr);
+	R_set_altlist_Elt_method(struct_class, VectorListElt);
 #endif
 }
 
@@ -234,12 +241,13 @@ struct AltrepVectorWrapper {
 	void *Dataptr() {
 		if (transformed_vector.data() == R_NilValue) {
 			auto res = rel->GetQueryResult();
+			const auto &name = res->names[column_index];
 
-			transformed_vector = duckdb_r_allocate(res->types[column_index], res->RowCount());
+			transformed_vector = duckdb_r_allocate(res->types[column_index], res->RowCount(), name, duckdb::ConvertOpts(),"Dataptr");
 			idx_t dest_offset = 0;
 			for (auto &chunk : res->Collection().Chunks()) {
 				SEXP dest = transformed_vector.data();
-				duckdb_r_transform(chunk.data[column_index], dest, dest_offset, chunk.size(), false);
+				duckdb_r_transform(chunk.data[column_index], dest, dest_offset, chunk.size(), duckdb::ConvertOpts(), name);
 				dest_offset += chunk.size();
 			}
 		}
@@ -274,17 +282,9 @@ Rboolean RelToAltrep::RelInspect(SEXP x, int pre, int deep, int pvec, void (*ins
 	END_CPP11_EX(Rboolean::FALSE)
 }
 
-// this allows us to set row names on a data frame with an int argument without calling INTPTR on it
-static void install_new_attrib(SEXP vec, SEXP name, SEXP val) {
-	SEXP attrib_vec = ATTRIB(vec);
-	SEXP attrib_cell = Rf_cons(val, R_NilValue);
-	SET_TAG(attrib_cell, name);
-	SETCDR(attrib_vec, attrib_cell);
-}
-
-static SEXP get_attrib(SEXP vec, SEXP name) {
+SEXP get_attrib(SEXP vec, SEXP name) {
 	for (SEXP attrib = ATTRIB(vec); attrib != R_NilValue; attrib = CDR(attrib)) {
-		if (TAG(attrib) == R_RowNamesSymbol) {
+		if (TAG(attrib) == name) {
 			return CAR(attrib);
 		}
 	}
@@ -347,6 +347,17 @@ SEXP RelToAltrep::VectorStringElt(SEXP x, R_xlen_t i) {
 }
 
 #if defined(R_HAS_ALTLIST)
+R_xlen_t RelToAltrep::StructLength(SEXP x) {
+	BEGIN_CPP11
+	auto const *wrapper = AltrepVectorWrapper::Get(x);
+	auto const column_index = wrapper->column_index;
+	auto const &res = wrapper->rel->GetQueryResult();
+	auto const &type = res->types[column_index];
+
+	return static_cast<R_xlen_t>(StructType::GetChildTypes(type).size());
+	END_CPP11_EX(0)
+}
+
 SEXP RelToAltrep::VectorListElt(SEXP x, R_xlen_t i) {
 	BEGIN_CPP11
 	return VECTOR_ELT(AltrepVectorWrapper::Get(x)->Vector(), i);
@@ -354,45 +365,28 @@ SEXP RelToAltrep::VectorListElt(SEXP x, R_xlen_t i) {
 }
 #endif
 
-static R_altrep_class_t LogicalTypeToAltrepType(const LogicalType &type) {
-	switch (type.id()) {
-	case LogicalTypeId::BOOLEAN:
+static R_altrep_class_t LogicalTypeToAltrepType(const LogicalType &type, const duckdb::string &name) {
+	auto rtype = duckdb_r_typeof(type, name, "LogicalTypeToAltrepType");
+	switch (rtype) {
+	case LGLSXP:
 		return RelToAltrep::logical_class;
-	case LogicalTypeId::UTINYINT:
-	case LogicalTypeId::TINYINT:
-	case LogicalTypeId::SMALLINT:
-	case LogicalTypeId::USMALLINT:
-	case LogicalTypeId::INTEGER:
-	case LogicalTypeId::ENUM:
+	case INTSXP:
 		return RelToAltrep::int_class;
-	case LogicalTypeId::UINTEGER:
-	case LogicalTypeId::BIGINT:
-	case LogicalTypeId::UBIGINT:
-	case LogicalTypeId::HUGEINT:
-	case LogicalTypeId::UHUGEINT:
-	case LogicalTypeId::FLOAT:
-	case LogicalTypeId::DOUBLE:
-	case LogicalTypeId::DECIMAL:
-	case LogicalTypeId::TIMESTAMP_SEC:
-	case LogicalTypeId::TIMESTAMP_MS:
-	case LogicalTypeId::TIMESTAMP:
-	case LogicalTypeId::TIMESTAMP_TZ:
-	case LogicalTypeId::TIMESTAMP_NS:
-	case LogicalTypeId::DATE:
-	case LogicalTypeId::TIME:
-	case LogicalTypeId::INTERVAL:
+	case REALSXP:
 		return RelToAltrep::real_class;
-	case LogicalTypeId::VARCHAR:
-	case LogicalTypeId::UUID:
+	case STRSXP:
 		return RelToAltrep::string_class;
-
 #if defined(R_HAS_ALTLIST)
-	case LogicalTypeId::LIST:
-		return RelToAltrep::list_class;
+	case VECSXP:
+		if (type.id() == LogicalTypeId::STRUCT) {
+			return RelToAltrep::struct_class;
+		} else {
+			return RelToAltrep::list_class;
+		}
 #endif
 
 	default:
-		cpp11::stop("rel_to_altrep: Unknown column type for altrep: %s", type.ToString().c_str());
+		cpp11::stop("LogicalTypeToAltrepType: Column `%s` has no type for altrep: %s", name.c_str(), type.ToString().c_str());
 	}
 }
 
@@ -417,16 +411,34 @@ size_t DoubleToSize(double d) {
 
 	auto relation_wrapper = make_shared_ptr<AltrepRelationWrapper>(rel, DoubleToSize(n_rows), DoubleToSize(n_cells));
 
+	// Row names
+	cpp11::external_pointer<AltrepRownamesWrapper> ptr(new AltrepRownamesWrapper(relation_wrapper));
+	R_SetExternalPtrTag(ptr, RStrings::get().duckdb_row_names_sym);
+	cpp11::sexp row_names_sexp = R_new_altrep(RelToAltrep::rownames_class, ptr, R_NilValue);
+
+	// Data
 	cpp11::writable::list data_frame;
 	data_frame.reserve(ncols);
 
 	for (size_t col_idx = 0; col_idx < ncols; col_idx++) {
-		auto &column_type = drel->Columns()[col_idx].Type();
+		auto &col = drel->Columns()[col_idx];
+		auto &col_name = col.Name();
+		auto &col_type = col.Type();
 		cpp11::external_pointer<AltrepVectorWrapper> ptr(new AltrepVectorWrapper(relation_wrapper, col_idx));
 		R_SetExternalPtrTag(ptr, RStrings::get().duckdb_vector_sym);
 
-		cpp11::sexp vector_sexp = R_new_altrep(LogicalTypeToAltrepType(column_type), ptr, R_NilValue);
-		duckdb_r_decorate(column_type, vector_sexp, false);
+		cpp11::sexp vector_sexp = R_new_altrep(LogicalTypeToAltrepType(col_type, col_name), ptr, R_NilValue);
+
+		duckdb_r_decorate(col_type, vector_sexp, rel->convert_opts);
+
+		// Special case: Only STRUCTs have a redundant row names attribute
+		// Moving this logic into duckdb_r_decorate() would add too much noise elsewhere
+		if (col_type.id() == LogicalTypeId::STRUCT) {
+			// FIXME: The exact class of nested columns can be a property
+			// of the relation object, determined by the data on input
+			duckdb_r_df_decorate_impl(vector_sexp, row_names_sexp, RStrings::get().dataframe_str);
+		}
+
 		data_frame.push_back(vector_sexp);
 	}
 
@@ -440,14 +452,8 @@ size_t DoubleToSize(double d) {
 	}
 	SET_NAMES(data_frame, StringsToSexp(names));
 
-	// Row names
-	cpp11::external_pointer<AltrepRownamesWrapper> ptr(new AltrepRownamesWrapper(relation_wrapper));
-	R_SetExternalPtrTag(ptr, RStrings::get().duckdb_row_names_sym);
-	cpp11::sexp row_names_sexp = R_new_altrep(RelToAltrep::rownames_class, ptr, R_NilValue);
-	install_new_attrib(data_frame, R_RowNamesSymbol, row_names_sexp);
-
-	// Class
-	data_frame.attr(R_ClassSymbol) = RStrings::get().dataframe_str;
+	// Class and row names
+	duckdb_r_df_decorate_impl(data_frame, row_names_sexp, RStrings::get().dataframe_str);
 
 	return data_frame;
 }
@@ -509,33 +515,8 @@ shared_ptr<AltrepRelationWrapper> rapi_rel_wrapper_from_altrep_df(SEXP df, bool 
 		return wrapper->rel_eptr;
 	}
 
-	return make_external<RelationWrapper>("duckdb_relation", make_shared_ptr<duckdb::AltrepDataFrameRelation>(wrapper->rel, df, wrapper));
-}
-
-SEXP result_to_df(duckdb::unique_ptr<duckdb::QueryResult> res) {
-	if (res->HasError()) {
-		stop("%s", res->GetError().c_str());
-	}
-	if (res->type == QueryResultType::STREAM_RESULT) {
-		res = ((StreamQueryResult &)*res).Materialize();
-	}
-	D_ASSERT(res->type == QueryResultType::MATERIALIZED_RESULT);
-	auto mat_res = (MaterializedQueryResult *)res.get();
-
-	writable::integers row_names;
-	row_names.push_back(NA_INTEGER);
-	row_names.push_back(-mat_res->RowCount());
-
-	// TODO this thing we can probably statically cache
-	writable::strings classes;
-	classes.push_back("tbl_df");
-	classes.push_back("tbl");
-	classes.push_back("data.frame");
-
-	auto df = sexp(duckdb_execute_R_impl(mat_res, false));
-	df.attr("class") = classes;
-	df.attr("row.names") = row_names;
-	return df;
+	auto out = make_shared_ptr<duckdb::AltrepDataFrameRelation>(wrapper->rel, df, wrapper);
+	return make_external<RelationWrapper>("duckdb_relation", out, wrapper->rel_eptr->convert_opts);
 }
 
 // exception required as long as r-lib/decor#6 remains
