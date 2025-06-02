@@ -1,5 +1,24 @@
 <!-- NEWS.md is maintained by https://fledge.cynkra.com, contributors should not edit this file -->
 
+# duckdb 1.3.0
+
+## Features
+
+- Update to duckdb v1.3.0, see <https://github.com/duckdb/duckdb/releases/tag/v1.3.0> for details.
+
+- Add ingestion of matrices (@joakimlinde, #1150).
+
+## Chore
+
+- Fix rchk (#1173).
+
+- Fix compiler warning (@joakimlinde, #1172).
+
+## Testing
+
+- Skip timing tests on CRAN.
+
+
 # duckdb 1.2.2
 
 ## Features
