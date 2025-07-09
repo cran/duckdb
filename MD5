@@ -1,7 +1,7 @@
-31525a04f7a5ff8fc72766aaad96fd0b *DESCRIPTION
+f1354b7671715b9d3f223bad7400d4ef *DESCRIPTION
 6793c89d1af721728c4d58c99d5b9d30 *LICENSE
 70ac013ddb3b830750dffb8f1b069229 *NAMESPACE
-3125112e515b2cd092b892249f37118d *NEWS.md
+c20b6e32904356abaf77f9e1c8132b67 *NEWS.md
 879967c529460a8404a3f5f5b252f330 *R/Connection.R
 a820af45d5be30f7840241b34d5891f9 *R/Driver.R
 2de860daaa7ab16d4b78387518515b1e *R/Result.R
@@ -115,7 +115,7 @@ a9009b59ea76eaa949fdc9d2c3e7d125 *src/cpp11.cpp
 486b32a0493ffe52414cb1ae6b492358 *src/cpp11.dd
 1ccb787c7314a6b6453de5134a1f99c7 *src/database.cpp
 961dccf3ec4175ef4842d837aa48a301 *src/database.dd
-b9f2fe34681ef1caa35e987b346b4383 *src/duckdb.tar.xz
+034985f51b9cd2fafb16b88fe36f6155 *src/duckdb.tar.xz
 f50249aabc7d9cc6e09370f4bfbb1ddf *src/include/altrepdataframe_relation.hpp
 ea6c3a39482c505721e041fab9fe5119 *src/include/convert.hpp
 1b667ff8e4eb7d8408f630d1ff432841 *src/include/from-tar.mk
