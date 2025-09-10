@@ -1,5 +1,40 @@
 <!-- NEWS.md is maintained by https://fledge.cynkra.com, contributors should not edit this file -->
 
+# duckdb 1.3.3
+
+- Update to the current v1.3-ossivalis branch, see <https://github.com/duckdb/duckdb/tree/v1.3-ossivalis> for details.
+
+## Bug fixes
+
+- Fix timezone conversion for invalid timestamps with `tz_out_convert = "force"` (#1474).
+
+- Substitute invalid UTF-8 characters in error messages to avoid a failure when reporting the error.
+
+- Fix index calculation for retrieval of arrays (#1473).
+
+- Fix conversion for retrieval of large enums.
+
+- Fix compiler error in debug build (@joakimlinde, #1368).
+
+## Features
+
+- Add rich ErrorData-based error handling with structured error information (#1479).
+
+- Safeguard against deadlocks when accidentally issuing queries from the progress bar handler or other callbacks (#1475).
+
+- `dbGetInfo()` gets the version from a hard-coded value and not from a DuckDB query (#1481).
+
+- Package uses two cores by default for compilation (#1478).
+
+## Documentation
+
+- Document vendoring process and main/next branch relationship (#1488).
+
+## Testing
+
+- Add `local_con()` test fixture for cleaner DuckDB connection management (#1476).
+
+
 # duckdb 1.3.2
 
 ## Features
