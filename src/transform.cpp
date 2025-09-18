@@ -7,7 +7,7 @@ using namespace duckdb;
 
 // converter for primitive types
 template <class SRC, class DEST>
-static void VectorToR(Vector &src_vec, size_t count, void *dest, uint64_t dest_offset, DEST na_val) {
+static void VectorToR(const Vector &src_vec, size_t count, void *dest, uint64_t dest_offset, DEST na_val) {
 	auto src_ptr = FlatVector::GetData<SRC>(src_vec);
 	auto &mask = FlatVector::Validity(src_vec);
 	auto dest_ptr = ((DEST *)dest) + dest_offset;
@@ -80,12 +80,14 @@ SEXP duckdb_r_allocate(const LogicalType &type, idx_t nrows, const string &name,
 	switch (type.id()) {
 	case LogicalTypeId::ARRAY: {
 		if (convert_opts.array != ConvertOpts::ArrayConversion::MATRIX)
-			rapi_error_with_context("duckdb_r_allocate", "Use `dbConnect(array = \"matrix\")` to enable arrays to be returned to R.");
+			rapi_error_with_context("duckdb_r_allocate",
+			                        "Use `dbConnect(array = \"matrix\")` to enable arrays to be returned to R.");
 		auto array_size = ArrayType::GetSize(type);
 		auto &child_type = ArrayType::GetChildType(type);
 		if (child_type.IsNested())
 			rapi_error_with_context("duckdb_r_allocate", "Nested arrays cannot be returned to R as column data.");
-		cpp11::sexp varvalue = duckdb_r_allocate(child_type, (nrows * array_size), name, convert_opts, "LogicalTypeId::ARRAY");
+		cpp11::sexp varvalue =
+		    duckdb_r_allocate(child_type, (nrows * array_size), name, convert_opts, "LogicalTypeId::ARRAY");
 		return varvalue;
 	}
 	case LogicalTypeId::STRUCT: {
@@ -168,7 +170,7 @@ double ConvertTimestampValue<LogicalTypeId::TIMESTAMP_NS>(int64_t timestamp) {
 }
 
 template <LogicalTypeId LT>
-void ConvertTimestampVector(Vector &src_vec, size_t count, const SEXP dest, uint64_t dest_offset) {
+void ConvertTimestampVector(const Vector &src_vec, size_t count, const SEXP dest, uint64_t dest_offset) {
 	auto src_data = FlatVector::GetData<int64_t>(src_vec);
 	auto &mask = FlatVector::Validity(src_vec);
 	double *dest_ptr = ((double *)NUMERIC_POINTER(dest)) + dest_offset;
@@ -298,7 +300,7 @@ SEXP ToRString(const string_t &input) {
 	return Rf_mkCharLenCE(data, len, CE_UTF8);
 }
 
-static void TransformArrayVector(Vector &src_vec, const SEXP dest, idx_t dest_offset, idx_t n,
+static void TransformArrayVector(const Vector &src_vec, const SEXP dest, idx_t dest_offset, idx_t n,
                                  const duckdb::ConvertOpts &convert_opts, const string &name) {
 	auto array_size = ArrayType::GetSize(src_vec.GetType());
 	auto &child_type = ArrayType::GetChildType(src_vec.GetType());
@@ -357,7 +359,7 @@ static void TransformArrayVector(Vector &src_vec, const SEXP dest, idx_t dest_of
 	}
 }
 
-void duckdb_r_transform(Vector &src_vec, const SEXP dest, idx_t dest_offset, idx_t n,
+void duckdb_r_transform(const Vector &src_vec, const SEXP dest, idx_t dest_offset, idx_t n,
                         const duckdb::ConvertOpts &convert_opts, const string &name) {
 	if (src_vec.GetType().GetAlias() == R_STRING_TYPE_NAME) {
 		ptrdiff_t sexp_header_size = (data_ptr_t)DATAPTR_RO(R_BlankString) - (data_ptr_t)R_BlankString;
@@ -545,7 +547,7 @@ void duckdb_r_transform(Vector &src_vec, const SEXP dest, idx_t dest_offset, idx
 	}
 	case LogicalTypeId::LIST: {
 		// figure out the total and max element length of the list vector child
-		auto src_data = ListVector::GetData(src_vec);
+		const auto src_data = ListVector::GetData(src_vec);
 		auto &child_type = ListType::GetChildType(src_vec.GetType());
 		Vector child_vector(child_type, nullptr);
 
