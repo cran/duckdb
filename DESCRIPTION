@@ -1,6 +1,6 @@
 Package: duckdb
 Title: DBI Package for the DuckDB Database Management System
-Version: 1.4.0
+Version: 1.4.1
 Authors@R: c(
     person("Hannes", "Mühleisen", , "hannes@cwi.nl", role = "aut",
            comment = c(ORCID = "0000-0001-8552-0029")),
@@ -50,12 +50,15 @@ Config/comment/compilation-database: Generate manually with
         pkgload:::generate_db() for faster pkgload::load_all()
 Config/gha/extra-packages: arrow=?ignore-before-r=4.2.0
         adbcdrivermanager=?ignore-before-r=4.2.0
+Config/gha/filter: os != "windows-latest" | r != "4.1"
+Config/gha/filter-note: Inexplicable build failures on Windows GHA with
+        R 4.1, works locally
 Encoding: UTF-8
 RoxygenNote: 7.3.3.9000
 SystemRequirements: xz (for building from source)
 Biarch: true
 NeedsCompilation: yes
-Packaged: 2025-09-17 14:15:21 UTC; kirill
+Packaged: 2025-10-07 17:52:10 UTC; kirill
 Author: Hannes Mühleisen [aut] (ORCID: <https://orcid.org/0000-0001-8552-0029>),
   Mark Raasveldt [aut] (ORCID: <https://orcid.org/0000-0001-5005-6844>),
   Kirill Müller [cre] (ORCID: <https://orcid.org/0000-0002-1416-3412>),
@@ -85,4 +88,4 @@ Author: Hannes Mühleisen [aut] (ORCID: <https://orcid.org/0000-0001-8552-0029>)
   PCG Project contributors [cph]
 Maintainer: Kirill Müller <kirill@cynkra.com>
 Repository: CRAN
-Date/Publication: 2025-09-18 12:40:02 UTC
+Date/Publication: 2025-10-16 13:30:02 UTC

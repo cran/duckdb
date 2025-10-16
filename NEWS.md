@@ -1,5 +1,24 @@
 <!-- NEWS.md is maintained by https://fledge.cynkra.com, contributors should not edit this file -->
 
+# duckdb 1.4.1
+
+- Update to DuckDB v1.4.1, see <https://github.com/duckdb/duckdb/releases/tag/v1.4.0> for details.
+
+## Features
+
+- Add support for wildcards in `tbl_file()` paths (#1614, @rplsmn).
+
+- Add `n_distinct(..., na.rm = TRUE)` support for multiple passed columns (@lschneiderbauer, #1588).
+
+## Bug fixes
+
+- Fix Valgrind error.
+
+## Testing
+
+- Ensure be able to install duckdb extensions on release version (@eitsupi, #1586).
+
+
 # duckdb 1.4.0
 
 - Update to DuckDB v1.4.0, see <https://github.com/duckdb/duckdb/releases/tag/v1.4.0> for details.
