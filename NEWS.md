@@ -1,5 +1,26 @@
 <!-- NEWS.md is maintained by https://fledge.cynkra.com, contributors should not edit this file -->
 
+# duckdb 1.5.0
+
+## Features
+
+- Update to DuckDB v1.5.0, see <https://github.com/duckdb/duckdb/releases/tag/v1.5.0> for details.
+
+- Support `descending` and `nulls_first` in `expr_window()` and `rel_order()` (#2074, #2075).
+
+## Bug fixes
+
+- The dbplyr translation of `as.numeric()` and `as.double()` uses `DOUBLE` instead of `NUMERIC` (#2023, #2031).
+
+## Testing
+
+- Update to testthat edition 3.
+
+## Internal
+
+- Avoid `ATTRIB()` for compatibility with R 4.6, materialize ALTREP row names to integer sequence with full ALTREP methods (#2034).
+
+
 # duckdb 1.4.4
 
 ## Features
