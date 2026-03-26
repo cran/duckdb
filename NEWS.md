@@ -1,5 +1,22 @@
 <!-- NEWS.md is maintained by https://fledge.cynkra.com, contributors should not edit this file -->
 
+# duckdb 1.5.1
+
+## Bug fixes
+
+- Update to DuckDB v1.5.1, see <https://github.com/duckdb/duckdb/releases/tag/v1.5.1> for details.
+
+## Features
+
+- `GEOMETRY` columns can be returned, either as BLOBs (default) or as wk objects (via the wk package) using `dbConnect(geometry = "wk")` (#2278, #2279).
+
+## Chore
+
+- Fix `-Wdeprecated` compiler warnings (#2295, #2296) and protection buglet (#2294).
+
+- Use `gtar` when available to suppress Apple extended attribute warnings on Linux (#2227, #2228).
+
+
 # duckdb 1.5.0
 
 ## Features
