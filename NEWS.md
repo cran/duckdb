@@ -1,5 +1,32 @@
 <!-- NEWS.md is maintained by https://fledge.cynkra.com, contributors should not edit this file -->
 
+# duckdb 1.5.2
+
+## Bug fixes
+
+- Update to DuckDB v1.5.2, see <https://github.com/duckdb/duckdb/releases/tag/v1.5.2> for details.
+
+- Fix compiler warning on recent clang on macOS.
+
+## Features
+
+- Use `TRY_CAST()` instead of `CAST()` in dplyr SQL translation for type conversion functions (#2230, #2231).
+
+## Chore
+
+- Use `R_getRegisteredNamespace()` in R 4.6.
+
+## Documentation
+
+- Describe branching strategy (#2280, #2281).
+
+## Testing
+
+- Use explicit default duckdb connection for arrow tests (#2301).
+
+- Rework arrow tests, prepare for compatibility with dbplyr 2.6.0 (#2300).
+
+
 # duckdb 1.5.1
 
 ## Bug fixes
