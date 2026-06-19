@@ -1,6 +1,6 @@
 Package: duckdb
 Title: DBI Package for the DuckDB Database Management System
-Version: 1.5.2
+Version: 1.5.4
 Authors@R: c(
     person("Hannes", "Mühleisen", , "hannes@cwi.nl", role = "aut",
            comment = c(ORCID = "0000-0001-8552-0029")),
@@ -40,27 +40,22 @@ Description: The DuckDB project is an embedded analytical data management
 License: MIT + file LICENSE
 URL: https://r.duckdb.org/, https://github.com/duckdb/duckdb-r
 BugReports: https://github.com/duckdb/duckdb-r/issues
-Depends: DBI, R (>= 4.1.0)
+Depends: DBI, R (>= 4.2.0)
 Imports: methods, utils
 Suggests: adbcdrivermanager, arrow (>= 13.0.0), bit64, callr, clock,
-        DBItest, dbplyr, dplyr, rlang, sf, testthat (>= 3.0.0), tibble,
-        vctrs, wk, withr
+        DBItest, dbplyr, dplyr, nanoarrow, rlang, sf, testthat (>=
+        3.0.0), tibble, vctrs, wk, withr
 Biarch: true
 Config/build/compilation-database: false
 Config/build/never-clean: true
 Config/comment/compilation-database: Generate manually with
         pkgload:::generate_db() for faster pkgload::load_all()
-Config/gha/extra-packages: arrow=?ignore-before-r=4.2.0
-        adbcdrivermanager=?ignore-before-r=4.2.0
-Config/gha/filter: os != "windows-latest" | r != "4.1"
-Config/gha/filter-note: Inexplicable build failures on Windows GHA with
-        R 4.1, works locally
 Config/testthat/edition: 3
 Encoding: UTF-8
-RoxygenNote: 7.3.3.9000
 SystemRequirements: xz (for building from source)
+Config/roxygen2/version: 8.0.0.9000
 NeedsCompilation: yes
-Packaged: 2026-04-13 15:04:10 UTC; kirill
+Packaged: 2026-06-18 04:17:41 UTC; kirill
 Author: Hannes Mühleisen [aut] (ORCID: <https://orcid.org/0000-0001-8552-0029>),
   Mark Raasveldt [aut] (ORCID: <https://orcid.org/0000-0001-5005-6844>),
   Kirill Müller [cre] (ORCID: <https://orcid.org/0000-0002-1416-3412>),
@@ -90,4 +85,4 @@ Author: Hannes Mühleisen [aut] (ORCID: <https://orcid.org/0000-0001-8552-0029>)
   PCG Project contributors [cph]
 Maintainer: Kirill Müller <kirill@cynkra.com>
 Repository: CRAN
-Date/Publication: 2026-04-13 19:20:02 UTC
+Date/Publication: 2026-06-19 06:30:02 UTC

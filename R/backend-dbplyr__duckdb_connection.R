@@ -286,6 +286,10 @@ sql_translation.duckdb_connection <- function(con) {
       paste = sql_paste(" "),
       paste0 = sql_paste(""),
 
+      # https://duckdb.org/docs/sql/expressions/comparison_operators
+      is_distinct_from = function(x, y) build_sql("(", x, ") IS DISTINCT FROM (", y, ")"),
+      is_not_distinct_from = function(x, y) build_sql("(", x, ") IS NOT DISTINCT FROM (", y, ")"),
+
       # clock
       add_days = function(x, n, ...) {
         build_sql("DATE_ADD(", !!x, ", INTERVAL (", n ,") day)")
@@ -527,7 +531,11 @@ tbl_query <- function(src, query, ...) {
 #' @export
 #' @rdname backend-duckdb
 simulate_duckdb <- function(...) {
-  structure(list(), ..., class = c("duckdb_connection", "TestConnection", "DBIConnection"))
+  structure(
+    list(pkg = get_package_name(), env = get_package_env()),
+    ...,
+    class = c("duckdb_connection", "TestConnection", "DBIConnection")
+  )
 }
 
 

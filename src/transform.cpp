@@ -1,6 +1,7 @@
 #include "duckdb/common/types/geometry_crs.hpp"
 #include "duckdb/common/types/uhugeint.hpp"
 #include "duckdb/common/types/uuid.hpp"
+#include "duckdb/function/scalar/variant_utils.hpp"
 #include "rapi.hpp"
 #include "typesr.hpp"
 
@@ -53,10 +54,12 @@ int duckdb_r_typeof(const LogicalType &type, const string &name, const char *cal
 	case LogicalTypeId::TIMESTAMP_NS:
 	case LogicalTypeId::DATE:
 	case LogicalTypeId::TIME:
+	case LogicalTypeId::TIME_TZ:
 	case LogicalTypeId::INTERVAL:
 		return REALSXP;
 	case LogicalTypeId::LIST:
 	case LogicalTypeId::MAP:
+	case LogicalTypeId::VARIANT:
 		return VECSXP;
 	case LogicalTypeId::ARRAY: {
 		auto &child_type = ArrayType::GetChildType(type);
@@ -213,8 +216,32 @@ void duckdb_r_decorate(const LogicalType &type, const SEXP dest, const duckdb::C
 	case LogicalTypeId::BLOB:
 	case LogicalTypeId::UUID:
 	case LogicalTypeId::LIST:
-	case LogicalTypeId::MAP:
+	case LogicalTypeId::VARIANT:
 		break; // no extra decoration required, do nothing
+	case LogicalTypeId::MAP:
+		if (convert_opts.map == ConvertOpts::MapShape::LIST_OF) {
+			// Build the empty data.frame(key = <K>, value = <V>) prototype.
+			auto &key_type = MapType::KeyType(type);
+			auto &value_type = MapType::ValueType(type);
+
+			cpp11::sexp key_proto =
+			    duckdb_r_allocate(key_type, 0, "MAP ptype key", convert_opts, "duckdb_r_decorate MAP");
+			duckdb_r_decorate(key_type, key_proto, convert_opts);
+			cpp11::sexp value_proto =
+			    duckdb_r_allocate(value_type, 0, "MAP ptype value", convert_opts, "duckdb_r_decorate MAP");
+			duckdb_r_decorate(value_type, value_proto, convert_opts);
+
+			cpp11::writable::list ptype;
+			ptype.push_back(cpp11::named_arg("key") = std::move(key_proto));
+			ptype.push_back(cpp11::named_arg("value") = std::move(value_proto));
+			(void)(SEXP)ptype; // realize any AsIs / cpp11 finalization
+
+			duckdb_r_df_decorate(ptype, 0);
+
+			SET_CLASS(dest, RStrings::get().vctrs_list_of_str);
+			Rf_setAttrib(dest, RStrings::get().ptype_sym, ptype);
+		}
+		break;
 	case LogicalTypeId::GEOMETRY:
 		if (convert_opts.geometry == ConvertOpts::GeometryConversion::WK) {
 			SET_CLASS(dest, RStrings::get().wk_wkb_wk_vctr_str);
@@ -258,6 +285,7 @@ void duckdb_r_decorate(const LogicalType &type, const SEXP dest, const duckdb::C
 		SET_CLASS(dest, RStrings::get().Date_str);
 		break;
 	case LogicalTypeId::TIME:
+	case LogicalTypeId::TIME_TZ:
 	case LogicalTypeId::INTERVAL:
 		SET_CLASS(dest, RStrings::get().difftime_str);
 		Rf_setAttrib(dest, RStrings::get().units_sym, RStrings::get().secs_str);
@@ -459,6 +487,24 @@ void duckdb_r_transform(const Vector &src_vec, const SEXP dest, idx_t dest_offse
 		Rf_setAttrib(dest, RStrings::get().units_sym, RStrings::get().secs_str);
 		break;
 	}
+	case LogicalTypeId::TIME_TZ: {
+		// R has no native time-with-time-zone type, so drop the offset and return
+		// the local time portion as a difftime in seconds. This matches the
+		// semantics of CAST(TIMETZ AS TIME) in DuckDB.
+		auto src_data = FlatVector::GetData<dtime_tz_t>(src_vec);
+		auto &mask = FlatVector::Validity(src_vec);
+		double *dest_ptr = ((double *)NUMERIC_POINTER(dest)) + dest_offset;
+		for (size_t row_idx = 0; row_idx < n; row_idx++) {
+			if (!mask.RowIsValid(row_idx)) {
+				dest_ptr[row_idx] = NA_REAL;
+			} else {
+				dest_ptr[row_idx] = static_cast<double>(src_data[row_idx].time().micros) / Interval::MICROS_PER_SEC;
+			}
+		}
+		SET_CLASS(dest, RStrings::get().difftime_str);
+		Rf_setAttrib(dest, RStrings::get().units_sym, RStrings::get().secs_str);
+		break;
+	}
 	case LogicalTypeId::INTERVAL: {
 		auto src_data = FlatVector::GetData<interval_t>(src_vec);
 		auto &mask = FlatVector::Validity(src_vec);
@@ -652,6 +698,22 @@ void duckdb_r_transform(const Vector &src_vec, const SEXP dest, idx_t dest_offse
 				// call R's own assign subset method
 				SET_ELEMENT(dest, dest_offset + row_idx, dest_list);
 			}
+		}
+		break;
+	}
+
+	case LogicalTypeId::VARIANT: {
+		RecursiveUnifiedVectorFormat format;
+		Vector::RecursiveToUnifiedFormat(const_cast<Vector &>(src_vec), n, format);
+		UnifiedVariantVectorData variant_data(format);
+
+		for (idx_t row_idx = 0; row_idx < n; row_idx++) {
+			if (!format.unified.validity.RowIsValid(format.unified.sel->get_index(row_idx))) {
+				SET_VECTOR_ELT(dest, dest_offset + row_idx, R_NilValue);
+				continue;
+			}
+			Value val = VariantUtils::ConvertVariantToValue(variant_data, row_idx, 0);
+			SET_VECTOR_ELT(dest, dest_offset + row_idx, RApiTypes::ValueToSexp(val, convert_opts));
 		}
 		break;
 	}

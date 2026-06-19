@@ -57,7 +57,7 @@ RStrings::RStrings() {
 	R_PreserveObject(strings);
 	MARK_NOT_MUTABLE(strings);
 
-	cpp11::sexp chars = Rf_allocVector(VECSXP, 12);
+	cpp11::sexp chars = Rf_allocVector(VECSXP, 13);
 	SET_VECTOR_ELT(chars, 0, UTC_str = Rf_mkString("UTC"));
 	SET_VECTOR_ELT(chars, 1, Date_str = Rf_mkString("Date"));
 	SET_VECTOR_ELT(chars, 2, difftime_str = Rf_mkString("difftime"));
@@ -70,6 +70,7 @@ RStrings::RStrings() {
 	SET_VECTOR_ELT(chars, 9, integer64_str = Rf_mkString("integer64"));
 	SET_VECTOR_ELT(chars, 10, tbl_df_tbl_dataframe_str = StringsToSexp({"tbl_df", "tbl", "data.frame"}));
 	SET_VECTOR_ELT(chars, 11, wk_wkb_wk_vctr_str = StringsToSexp({"wk_wkb", "wk_vctr"}));
+	SET_VECTOR_ELT(chars, 12, vctrs_list_of_str = StringsToSexp({"vctrs_list_of", "vctrs_vctr", "list"}));
 
 	R_PreserveObject(chars);
 	MARK_NOT_MUTABLE(chars);
@@ -90,6 +91,7 @@ RStrings::RStrings() {
 	duckdb_row_names_sym = Rf_install("duckdb_row_names");
 	duckdb_vector_sym = Rf_install("duckdb_vector");
 	crs_sym = Rf_install("crs");
+	ptype_sym = Rf_install("ptype");
 }
 
 LogicalType RStringsType::Get() {
@@ -272,61 +274,38 @@ Value RApiTypes::SexpToValue(SEXP valsexp, R_len_t idx, bool typed_logical_null)
 	}
 }
 
-SEXP RApiTypes::ValueToSexp(Value &val, string &timezone_config) {
+SEXP RApiTypes::ValueToSexp(const Value &val, const ConvertOpts &convert_opts) {
 	if (val.IsNull()) {
 		return R_NilValue;
 	}
 
-	switch (val.type().id()) {
-	case LogicalTypeId::BOOLEAN:
-		return cpp11::logicals({val.GetValue<bool>()});
-	case LogicalTypeId::TINYINT:
-	case LogicalTypeId::SMALLINT:
-	case LogicalTypeId::INTEGER:
-	case LogicalTypeId::UTINYINT:
-	case LogicalTypeId::USMALLINT:
-	case LogicalTypeId::UINTEGER:
-		return cpp11::integers({val.GetValue<int32_t>()});
-	case LogicalTypeId::BIGINT:
-	case LogicalTypeId::UBIGINT:
-	case LogicalTypeId::FLOAT:
-	case LogicalTypeId::DOUBLE:
-	case LogicalTypeId::DECIMAL:
-		return cpp11::doubles({val.GetValue<double>()});
-	case LogicalTypeId::VARCHAR:
-		return StringsToSexp({val.ToString()});
-	case LogicalTypeId::TIMESTAMP: {
-		cpp11::doubles res({(double)Timestamp::GetEpochSeconds(val.GetValue<timestamp_t>())});
-		// TODO bit of duplication here with statement.cpp, fix this
-		// some dresssup for R
-		SET_CLASS(res, RStrings::get().POSIXct_POSIXt_str);
-		Rf_setAttrib(res, RStrings::get().tzone_sym, StringsToSexp({""}));
-		return res;
-	}
-	case LogicalTypeId::TIMESTAMP_TZ: {
-		cpp11::doubles res({(double)Timestamp::GetEpochSeconds(val.GetValue<timestamp_tz_t>())});
-		SET_CLASS(res, RStrings::get().POSIXct_POSIXt_str);
-		Rf_setAttrib(res, RStrings::get().tzone_sym, StringsToSexp({timezone_config}));
-		return res;
-	}
-	case LogicalTypeId::TIME: {
-		cpp11::doubles res({(double)val.GetValue<dtime_t>().micros / Interval::MICROS_PER_SEC});
-		// some dresssup for R
-		SET_CLASS(res, RStrings::get().difftime_str);
-		// we always return difftime as "seconds"
-		Rf_setAttrib(res, RStrings::get().units_sym, RStrings::get().secs_str);
-		return res;
+	auto &type = val.type();
+
+	// UNION: unwrap and recurse with the active member's value
+	if (type.id() == LogicalTypeId::UNION) {
+		auto &val_ref = UnionValue::GetValue(val);
+		return ValueToSexp(val_ref, convert_opts);
 	}
 
-	case LogicalTypeId::DATE: {
-		cpp11::doubles res({(double)int32_t(val.GetValue<date_t>())});
-		// some dresssup for R
-		SET_CLASS(res, RStrings::get().Date_str);
-		return res;
-	}
+	// Create a single-element Vector and reuse the existing transform pipeline
+	Vector vec(type, 1);
+	vec.SetValue(0, val);
 
+	SEXP dest = duckdb_r_allocate(type, 1, "variant", convert_opts, "ValueToSexp");
+	duckdb_r_decorate(type, dest, convert_opts);
+	duckdb_r_transform(vec, dest, 0, 1, convert_opts, "variant");
+
+	// Types stored as per-row VECSXP elements: extract element 0
+	// STRUCT returns a 1-row data frame: return as-is
+	// Scalars return a length-1 vector: return as-is
+	switch (type.id()) {
+	case LogicalTypeId::LIST:
+	case LogicalTypeId::MAP:
+	case LogicalTypeId::BLOB:
+	case LogicalTypeId::GEOMETRY:
+		return VECTOR_ELT(dest, 0);
 	default:
-		throw NotImplementedException("Can't convert %s of type %s", val.ToString(), val.type().ToString());
+		return dest;
 	}
 }
 

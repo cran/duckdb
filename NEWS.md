@@ -1,5 +1,61 @@
 <!-- NEWS.md is maintained by https://fledge.cynkra.com, contributors should not edit this file -->
 
+# duckdb 1.5.4
+
+## Features
+
+- Update to DuckDB v1.5.4, see <https://github.com/duckdb/duckdb/releases/tag/v1.5.4> for details.
+
+- Support writing `MAP` columns via `dbAppendTable()` and `dbWriteTable()` (#2354).
+
+- Add native `VARIANT` (@thohan88, #2313) and `TIME WITH TIME ZONE` (#1807, #2336) data type support.
+
+- Implement DBI Arrow API with `dbSendQueryArrow()` and streaming (#2347, #2355).
+
+- Store downloaded extensions inside the duckdb package install directory (#2327).
+
+- Add secret directory configuration, package startup message, and consolidation support via new experimental `duckdb_consolidate_secrets()` (#2305, #2340).
+
+## Compatibility
+
+- Add `is_distinct_from()` / `is_not_distinct_from()` dbplyr translations for compatibility with upcoming dbplyr 2.6.0 (#2326, #2332).
+
+- Bump minimum R version requirement to 4.2.0 (#2233, #2334).
+
+## Testing
+
+- Add CRAN guards to prevent heavy C++ engine tests on CRAN (#2353, #2358).
+
+- Add comprehensive test coverage for `MAP` type reading (#2342).
+
+
+# duckdb 1.5.3
+
+## Features
+
+- Update to DuckDB v1.5.3, see <https://github.com/duckdb/duckdb/releases/tag/v1.5.3> for details.
+
+- Add secret directory configuration, package startup message, and consolidation support via new experimental `duckdb_consolidate_secrets()` (#2305, #2340).
+
+- Add native `VARIANT` (@thohan88, #2313) and `TIME WITH TIME ZONE` (#1807, #2336) data type support.
+
+- Add `is_distinct_from()` / `is_not_distinct_from()` dbplyr translations for compatibility with upcoming dbplyr 2.6.0 (#2326, #2332).
+
+## Bug fixes
+
+- Avoid rchk error in `RownamesDuplicate()` (#2290, #2291).
+
+## Chore
+
+- Bump minimum R version requirement to 4.2.0 (#2233, #2334).
+
+- Store downloaded extensions inside the duckdb package install directory (#2327).
+
+## Testing
+
+- Add comprehensive test coverage for `MAP` type reading (#2342).
+
+
 # duckdb 1.5.2
 
 ## Bug fixes

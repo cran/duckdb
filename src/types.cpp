@@ -325,6 +325,7 @@ string RApiTypes::DetectLogicalType(const LogicalType &stype, const char *caller
 	case LogicalTypeId::DATE:
 		return "Date";
 	case LogicalTypeId::TIME:
+	case LogicalTypeId::TIME_TZ:
 	case LogicalTypeId::INTERVAL:
 		return "difftime";
 	case LogicalTypeId::UINTEGER:
@@ -343,6 +344,7 @@ string RApiTypes::DetectLogicalType(const LogicalType &stype, const char *caller
 	case LogicalTypeId::GEOMETRY:
 		return "raw";
 	case LogicalTypeId::LIST:
+	case LogicalTypeId::VARIANT:
 		return "list";
 	case LogicalTypeId::ARRAY:
 		return "matrix";
