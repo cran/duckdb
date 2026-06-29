@@ -1,7 +1,7 @@
-161d196bb94d4fb56aa74f9381006231 *DESCRIPTION
+4048c73def5bfd992e6a94bd1c9edc27 *DESCRIPTION
 6793c89d1af721728c4d58c99d5b9d30 *LICENSE
 5312fb2f35afab21601da5f115bd959e *NAMESPACE
-47b902d75403d3a999957bd4f971ddf9 *NEWS.md
+477ced43d76faf4b2a7ae9bb020e3c49 *NEWS.md
 879967c529460a8404a3f5f5b252f330 *R/Connection.R
 8b2657c51de8ab0ce331ea8bb5ff25e2 *R/Driver.R
 0a0ed1283deae3c057328ada44b583a2 *R/Result.R
@@ -53,7 +53,7 @@ d8c073bb27119244fc6f38eccc2e1bc4 *R/dbRemoveTable__duckdb_connection_character.R
 a27603bb76f3da7dc9a32753f8630f1f *R/dbWriteTable__duckdb_connection_character_data.frame.R
 ace6b30234f7b55bc4f2c952550c2ad1 *R/duckdb-package.R
 653db38f31ac5d370f79e7bff58704af *R/duckdb.R
-af4dc54b5b2690639d69d0d9e7416db4 *R/extensions.R
+4f2256a087d31e98259f183514f7230a *R/extensions.R
 20fcb012cb049e275407d69df93b5647 *R/package.R
 8fb9ff90183babfdac2e79cdd2e25dea *R/print__duckdb_explain.R
 d81157a6e6ff4f63f8385e0b5bbd974c *R/progress_display.R
@@ -145,7 +145,7 @@ da0b6b3caee19ad22ffea65be7c7fcae *src/convert.dd
 486b32a0493ffe52414cb1ae6b492358 *src/cpp11.dd
 76cb67ebc43d3be0388c6b1942f6b8eb *src/database.cpp
 961dccf3ec4175ef4842d837aa48a301 *src/database.dd
-65baefad55a293dd50403ccd7aecc90c *src/duckdb.tar.xz
+cb6dbbe54add8e88b13485aa4461742b *src/duckdb.tar.xz
 f50249aabc7d9cc6e09370f4bfbb1ddf *src/include/altrepdataframe_relation.hpp
 8c245a927e0eef8f230c3f5fe7aca40e *src/include/convert.hpp
 1b667ff8e4eb7d8408f630d1ff432841 *src/include/from-tar.mk
@@ -247,8 +247,10 @@ fd244517c18b0452868dd3fa3b86e347 *tests/testthat/test-secret_directory.R
 da5768808355145a31933a8b0dd09c0b *tests/testthat/test-shutdown.R
 b645a54be07b9750f5542c6b5f06d41a *tests/testthat/test-signal.R
 53a2db3a50ef4ff62b162c2570273045 *tests/testthat/test-sql.R
+9166c1b1c9c2494f4ad89997b4443059 *tests/testthat/test-storage-cli-e2e.R
 bcc3e58631eeb2f77757fb37d3596a59 *tests/testthat/test-storage-config.R
 71057d43da4aa00b16004cd64fe4a48e *tests/testthat/test-storage-e2e.R
+0f51c5cd5c1ee2ee291e5e61d08a3f0a *tests/testthat/test-storage-home.R
 8b1d7c6ee92bf8a8e2fe9e502c24e35b *tests/testthat/test-storage-markers.R
 834d9c068ffab04b779bd976bc6854df *tests/testthat/test-storage-resolve.R
 2c4702c546460454caee28c664b55474 *tests/testthat/test-storage-seams.R
