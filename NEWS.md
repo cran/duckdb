@@ -1,5 +1,34 @@
 <!-- NEWS.md is maintained by https://fledge.cynkra.com, contributors should not edit this file -->
 
+# duckdb 1.5.5
+
+## Features
+
+- Update to DuckDB v1.5.5, see <https://github.com/duckdb/duckdb/releases/tag/v1.5.5> for details.
+
+- Disable extensions on libc++ Linux builds, with startup message and load error (#1107, #2414).
+
+- Rework how extensions and secrets choose their on-disk location, replacing the
+  package-library extension cache attempted across 1.5.4.1 through 1.5.4.3.
+  Both now share a single "home" root, resolved fresh for every `duckdb()` driver.
+  An interactive prompt in `duckdb()` and messages in non-interactive sessions guide the process.
+  See `?duckdb_storage` for details. (#2396, #2398).
+
+## Bug fixes
+
+- Support `OR` and `IN` predicates pushed down to registered Arrow tables (#2410).
+
+- Error instead of crashing when calling `duckdb_fetch_arrow()` on an Arrow result that has been consumed with `duckdb_fetch_record_batch()` (#2406).
+
+- Fix edge case in computation of `r_base::min`/`r_base::max`/`r_base::sum` aggregates (#2404, #2405).
+
+- Honor the `na.rm` argument of `r_base` aggregates in SQL queries (#2407).
+
+## Documentation
+
+- Document database-instance caching and driver reuse (#2399).
+
+
 # duckdb 1.5.4.3
 
 ## Bug fixes
@@ -12,6 +41,7 @@
 ## Bug fixes
 
 - Fix shared on-disk storage path on Windows (#2385).
+
 
 # duckdb 1.5.4.1
 
@@ -28,6 +58,28 @@
 
   These functions replace the experimental `duckdb_consolidate_secrets()`
   introduced in 1.5.4.
+
+## Continuous integration
+
+- Create `~/.duckdb` so CI exercises the shared storage path (#2417).
+
+- Install `tzdata-legacy` for legacy time zones like `PST8PDT` (#2409).
+
+## Documentation
+
+- Document all S4 class slots; deprecate the legacy connection slots (#2416).
+
+- Document database-instance caching and driver reuse (#2399).
+
+## Testing
+
+- Cover extensions env-var semantics and lock message wording (#2418).
+
+- Skip DBItest timestamp roundtrip tests when `PST8PDT` is unresolvable (#2408).
+
+## Uncategorized
+
+- Ci: Harden `format-suggest` against `pull_request_target` pwn requests (#93).
 
 
 # duckdb 1.5.4

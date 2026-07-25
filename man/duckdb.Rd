@@ -17,6 +17,9 @@ duckdb(
   bigint = "numeric",
   config = list(),
   ...,
+  home = NULL,
+  shared_home = NULL,
+  allow_extensions = NULL,
   environment_scan = FALSE
 )
 
@@ -61,6 +64,61 @@ These flags are only applied when the database object is instantiated.
 Subsequent connections will silently ignore these flags.}
 
 \item{...}{These dots are for future extensions and must be empty.}
+
+\item{home}{Root directory for DuckDB's downloaded extensions and stored secrets.
+\code{NULL} (the default) resolves the location as described in \link{duckdb_storage}:
+an existing \verb{~/.duckdb}, else a per-session temporary directory
+(with an offer to create \verb{~/.duckdb} in interactive sessions).
+Pass a path to use it as the root explicitly, creating it if needed.
+Cannot be combined with \code{shared_home}.
+Applied only when the database instance is created;
+see the \sQuote{Database instances and driver reuse} section.}
+
+\item{shared_home}{Opt in or out of the shared \verb{~/.duckdb} location,
+overriding the automatic resolution.
+One of:
+\itemize{
+\item \code{NULL} (the default) -- resolve automatically (see \link{duckdb_storage}).
+This is the safe default.
+\item \code{TRUE} -- store extensions and secrets under \verb{~/.duckdb}, \strong{creating that
+directory if it does not exist}.
+This is a good setting for permanent deployments (Posit Connect, Shiny, APIs).
+Do not use on CRAN or on other infrastructure where you don't own \verb{~/.duckdb}.
+
+The setting is a durable, machine-level side effect that is \emph{not} scoped to the current session:
+the directory persists after R exits, is reused by every future R session
+(and by the DuckDB CLI, Python and other clients that share \verb{~/.duckdb}),
+and any secrets written there outlive this process.
+Applying this setting repeatedly is a fast no-op.
+\item \code{FALSE} -- use a per-session temporary directory even if \verb{~/.duckdb}
+already exists. Nothing persists beyond the session.
+}
+
+Cannot be combined with \code{home}.
+Applied only when the database instance is created;
+see the \sQuote{Database instances and driver reuse} section.}
+
+\item{allow_extensions}{\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#experimental}{\figure{lifecycle-experimental.svg}{options: alt='[Experimental]'}}}{\strong{[Experimental]}}
+Whether this driver may load DuckDB extensions (\code{INSTALL} / \code{LOAD}).
+One of:
+\itemize{
+\item \code{NULL} (the default) -- decide automatically.
+Extensions are enabled,
+except on an affected Linux build (one not compiled with \verb{libstdc++}),
+where they are disabled and a throttled advisory message is shown.
+See the \sQuote{DuckDB extensions on Linux} section.
+\item \code{TRUE} -- force-enable extensions,
+attempting to load them even on an affected build (which may crash R).
+No message.
+\item \code{FALSE} -- disable extensions and silence the advisory message.
+}
+
+The argument takes precedence over the \code{duckdb.allow_extensions} option (a scalar logical)
+and the \code{DUCKDB_R_ALLOW_EXTENSIONS} environment variable
+(a value R reads as \code{TRUE} enables extensions and \code{FALSE} disables them;
+unset, empty, or any other value is undecided).
+Applied only when the database instance is created;
+see the \sQuote{Database instances and driver reuse} section.}
 
 \item{environment_scan}{Set to \code{TRUE} to treat
 data frames from the calling environment as tables.
@@ -133,6 +191,59 @@ the underlying time representation to a human-readable format.
 If the timestamp is invalid in the target timezone, the resulting value may be \code{NA}
 or an adjusted time.
 }
+\section{Database instances and driver reuse}{
+
+
+\code{duckdb()} returns a driver object that owns a DuckDB \emph{database instance}.
+\code{dbConnect()} opens connections to that instance,
+and many connections can share one instance.
+
+For a file-based \code{dbdir}, the instance is cached, keyed by the (normalized) path:
+calling \code{duckdb()} again with the same \code{dbdir} returns the same driver and instance
+while it is still alive.
+This is deliberate.
+DuckDB allows only a single read-write handle to a database file at a time,
+so opening a second instance of the same file would fail with a lock error.
+Reusing one instance instead lets any number of \code{dbConnect(duckdb(dbdir = "my.db"))} calls share it.
+An in-memory database (\verb{:memory:}, the default) has no file to lock and is never cached:
+every \code{duckdb()} call creates a fresh, isolated instance.
+
+Because the instance is created once per database file,
+\code{config}, \code{read_only}, \code{home}, and \code{shared_home} take effect only at creation.
+A call that reuses an existing instance ignores them.
+To apply different values to a file-based database --
+for example to reopen it read-only, or to send extensions and secrets elsewhere --
+first release the instance with \code{\link[=duckdb_shutdown]{duckdb_shutdown()}}, which also drops it from the cache,
+then create it again.
+\code{\link[DBI:dbDisconnect]{dbDisconnect()}} only closes a connection,
+it does not release the instance, and its \code{shutdown} argument is unused.
+Instances are shut down automatically when the driver is garbage-collected or the session ends.
+}
+
+\section{DuckDB extensions on Linux}{
+
+
+DuckDB's prebuilt extensions for Linux are compiled with the GNU C++ standard library (\verb{libstdc++}).
+Loading one into a \code{duckdb} package that was itself built with a \emph{different} C++ standard library --
+most commonly \verb{libc++} (clang's \verb{-stdlib=libc++}) --
+is an ABI mismatch that crashes R (\url{https://github.com/duckdb/duckdb-r/issues/1107}).
+Almost all Linux builds (CRAN binaries and most source installs) use \verb{libstdc++} and are unaffected;
+macOS and Windows are unaffected.
+
+Each \code{duckdb()} call decides whether the driver it returns may load extensions,
+via the \code{allow_extensions} argument, the \code{duckdb.allow_extensions} option,
+the \code{DUCKDB_R_ALLOW_EXTENSIONS} environment variable, or automatic detection.
+On the automatic path a build that was not compiled with \verb{libstdc++} on Linux disables extensions:
+\code{INSTALL} / \code{LOAD} raise a clear error instead of crashing,
+automatic extension install/load is turned off,
+and a throttled advisory message is shown when \code{duckdb()} is called.
+Pass \code{allow_extensions = FALSE} to disable extensions and silence that message,
+or \code{allow_extensions = TRUE} to attempt loading anyway (which may still crash R).
+
+The decision is carried on the returned driver as the experimental \code{allow_extensions} slot
+(see \link[=duckdb_driver-class]{duckdb_driver}).
+}
+
 \examples{
 \dontshow{if (simulate_duckdb()$env$examples_enabled() && requireNamespace("adbcdrivermanager", quietly = TRUE)) withAutoprint(\{ # examplesIf}
 library(adbcdrivermanager)

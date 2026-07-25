@@ -87,6 +87,27 @@ static cpp11::list construct_retlist(duckdb::unique_ptr<PreparedStatement> stmt,
 		// no statements to execute
 		rapi_error_with_context("rapi_prepare", "No statements to execute");
 	}
+
+	// When extensions are disallowed for this driver (an affected non-libstdc++
+	// Linux build, or duckdb(allow_extensions = FALSE)), refuse the whole
+	// extension workflow. DuckDB parses INSTALL, FORCE INSTALL and LOAD all as
+	// StatementType::LOAD_STATEMENT, so this one check forbids installing as well
+	// as loading: LOAD would dlopen() a prebuilt (libstdc++) extension and crash R
+	// (duckdb/duckdb-r#1107), and there is no point installing an extension that
+	// can never be loaded. The decision is made in R (resolve_allow_extensions())
+	// and plumbed here via the DBWrapper external pointer. Every parsed statement
+	// is checked -- not just the last one returned to the caller -- so a LOAD
+	// anywhere in a multi-statement query is caught. The user-facing message is
+	// centralized in R: throw with context "load_extension" and an empty message,
+	// and rapi_error() fills in the text from extensions_disabled_error().
+	if (!conn->db->allow_extensions) {
+		for (auto &statement : statements) {
+			if (statement->type == StatementType::LOAD_STATEMENT) {
+				rapi_error_with_context("load_extension", "");
+			}
+		}
+	}
+
 	// if there are multiple statements, we directly execute the statements besides the last one
 	// we only return the result of the last statement to the user, unless one of the previous statements fails
 	for (idx_t i = 0; i + 1 < statements.size(); i++) {
@@ -266,6 +287,12 @@ bool FetchArrowChunk(ChunkScanState &scan_state, ClientProperties options, Appen
 
 // Turn a DuckDB result set into an Arrow Table
 [[cpp11::register]] SEXP rapi_execute_arrow(duckdb::rqry_eptr_t qry_res, int chunk_size) {
+	if (!qry_res || !qry_res.get()) {
+		rapi_error_with_context("rapi_execute_arrow", "Invalid query result");
+	}
+	if (!qry_res->result) {
+		rapi_error_with_context("rapi_execute_arrow", "Result has already been consumed");
+	}
 	auto result = qry_res->result.get();
 	// somewhat dark magic below
 	cpp11::function getNamespace = RStrings::get().getNamespace_sym;
@@ -384,6 +411,12 @@ bool FetchArrowChunk(ChunkScanState &scan_state, ClientProperties options, Appen
 
 // Turn a DuckDB result set into an RecordBatchReader
 [[cpp11::register]] SEXP rapi_record_batch(duckdb::rqry_eptr_t qry_res, int chunk_size) {
+	if (!qry_res || !qry_res.get()) {
+		rapi_error_with_context("rapi_record_batch", "Invalid query result");
+	}
+	if (!qry_res->result) {
+		rapi_error_with_context("rapi_record_batch", "Result has already been consumed");
+	}
 	// somewhat dark magic below
 	cpp11::function getNamespace = RStrings::get().getNamespace_sym;
 	cpp11::sexp arrow_namespace(getNamespace(RStrings::get().arrow_str));
