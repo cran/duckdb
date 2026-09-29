@@ -1,5 +1,134 @@
 <!-- NEWS.md is maintained by https://fledge.cynkra.com, contributors should not edit this file -->
 
+# duckdb 1.5.6
+
+## Features
+
+- Update to DuckDB v1.5.6, see <https://github.com/duckdb/duckdb/releases/tag/v1.5.6> for details.
+
+- New experimental `to_arrow_stream()` streams a dbplyr table on DuckDB into Arrow batch by batch,
+  where `arrow::to_arrow()` materializes the whole result first (#2803).
+
+- A `duckdb_error` condition carries the fields DuckDB attaches to an error:
+  `error_type`, `raw_message`, `extra_info` and `context`, see `?duckdb_error` (#2714).
+  Errors raised by the package itself point at the calling function (#2637).
+
+- A database instance is cached under the path the engine resolves,
+  so different spellings of one file and symlinks to it share one instance,
+  and a lower-case Windows drive letter resolves on that drive (#2627).
+
+- The dbplyr backend translates `clock::date_build()` and `difftime()` (#2621).
+
+- An Arrow query result exposes its schema, and an empty batch, before the first fetch (#2781).
+
+## Compatibility
+
+- The dbplyr backend needs dbplyr 2.6.0 or later, and warns when an older dbplyr is loaded (#2605).
+
+- The installed package no longer ships the cpp11 headers under `include/` (#2649).
+
+- The package compiles without warnings on the clang 23 and R-devel check flavors (#2617, #2698).
+
+- `duckdb()` and `dbConnect()` fail instead of silently ignoring settings a cached database instance cannot apply:
+  a different `read_only`, a differing `config` entry, or `home`, `shared_home`, `allow_extensions` or `environment_scan`.
+  `dbConnect(drv, dbdir)` also fails when `drv` already owns a different database file.
+  Call `duckdb_shutdown()` first, or pass the settings to the `duckdb()` call that creates the instance (#2641).
+
+## Bug fixes
+
+### Crashes and hangs
+
+- A data frame parameter binds one struct per row instead of crashing R (#2818).
+
+- A list column of data frames or factors no longer crashes or hangs a parallel scan (#2834),
+  and lazy (ALTREP) vectors inside struct, matrix and list columns are materialized on R's thread before a scan reads them (#2582).
+
+- Writing a named list with an empty value under `map = "list_of"` no longer crashes (#2866).
+
+- Converting `VARIANT` values to R no longer exposes intermediate objects to the garbage collector (#2750, #2753).
+
+- The progress display keeps its R callback alive and calls it only on R's thread (#2828),
+  and prints at most every half second (#2844).
+
+- Opening a database whose previous instance is still held by a connection or an unfinished result
+  no longer spins at full CPU, it reports that the database is still in use (#2759).
+
+- A failure inside a lazy data frame's ALTREP method no longer strips `duckdb_error` from later errors
+  or leaves a partly converted column behind (#2829),
+  and an error raised while such a method runs no longer calls into R (#1796, #1797).
+
+### Types and time zones
+
+- `TIMESTAMPTZ` columns take their `tzone` attribute from the session's `TimeZone` setting, also in lazy relations,
+  and stay in UTC when the icu extension is not available (#184, #2401).
+
+- `dbQuoteLiteral()` keeps the sub-second part of a `POSIXct` value (#2646, #2763).
+
+- `integer64` columns and parameters are always written as `BIGINT`, whatever the `bigint` setting (#2819).
+
+- Integer-backed `Date` and `difftime` columns keep their `NA` values,
+  and a data frame column with several fields writes as `STRUCT` (#2808).
+
+- A table whose columns R cannot hold is still found and listed,
+  and a query returning such a column fails before it runs, naming the column (#2808).
+
+### Connections and storage
+
+- An in-memory database spills to its own directory below `tempdir()` out of the box,
+  created only when a query spills and removed when the instance shuts down.
+  An on-disk database keeps DuckDB's `<dbdir>.tmp` default, as the DuckDB CLI does (#2562).
+
+- `~/.duckdb` is no longer created for a session that only looks interactive, such as one with `options(rlang_interactive = TRUE)`.
+  Without a person to answer the prompt, the per-session directory is used (#2550).
+
+- A database path is normalized only as far as it resolves,
+  so a path that cannot be resolved is handed to the engine rather than refused (#455, #2623),
+  and a `dbdir` that cannot be created is reported against the user's call (#2822).
+
+- A `dbdir` that an extension handles, such as a URL, is no longer treated as a file (#2641).
+
+- `dbIsValid()` on a driver no longer opens the database (#2754).
+
+### Queries and results
+
+- A `PRAGMA` runs after the statements before it in one query string (@t-kalinowski, #2792).
+  Its expansion no longer leaves a transaction open or refuses a `LOAD` halfway, and an empty one can end a query (#2845).
+
+- `dbListFields()` and `dbAppendTable()` read the columns of a table named by `Id()` correctly (#2848).
+
+- `dbClearResult()` frees the unread results of a multi-row bind at once, not at the next garbage collection (#2784, #2825),
+  and ends the query of an Arrow stream that was not read to the end (#2793).
+
+### Arrow
+
+- Reading an Arrow stream that another statement invalidated is an error, not the end of the stream (#2775),
+  and an Arrow stream keeps its connection's client context alive (#2790).
+
+- `dbFetchArrowChunk()` builds the final empty chunk for `LIST` and `INTERVAL` columns (#2774),
+  and each `dbFetchArrowChunk()` and `dbFetchArrow()` call uses its own `chunk_size` (#2791).
+
+- `duckdb_fetch_arrow()` and `duckdb_fetch_record_batch()` refuse a cleared result, as the other result methods do (#2785, #2821).
+
+## Performance
+
+- Release the ALTREP query result after materialization and transformation (@toppyy, #1027).
+
+- The list of valid time zones is read once per session, and again when `TZDIR` changes (#2786, #2810).
+
+## Documentation
+
+- New reference pages `?duckdb_types` and `?duckdb_types_arrow` catalog every DuckDB type in and out of R,
+  through R vectors and through Arrow, geometry included (#2836, #2837, #2850, #2861).
+
+- The new reference page `?duckdb_memory` and the help pages for fetching and writing data describe the memory a query takes (#2666).
+
+- `?duckdb` describes what keeps a database instance open and the limitations known today (#2823, #2849).
+
+- The connection's help page describes how a string holding several statements runs (#2835).
+
+- The README states the package's goals and non-goals (#2731).
+
+
 # duckdb 1.5.5
 
 ## Features

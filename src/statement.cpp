@@ -1,10 +1,5 @@
-#include "duckdb/common/arrow/arrow.hpp"
-#include "duckdb/common/arrow/arrow_converter.hpp"
-#include "duckdb/common/arrow/arrow_util.hpp"
-#include "duckdb/common/arrow/arrow_wrapper.hpp"
-#include "duckdb/common/arrow/result_arrow_wrapper.hpp"
 #include "duckdb/common/types/timestamp.hpp"
-#include "duckdb/main/chunk_scan_state/query_result.hpp"
+#include "duckdb/parser/parser.hpp"
 #include "duckdb/parser/statement/relation_statement.hpp"
 #include "httplib.hpp"
 #include "rapi.hpp"
@@ -12,6 +7,9 @@
 #include "typesr.hpp"
 
 #include <R_ext/Utils.h>
+
+// Handbook: handbook/usage/memory/reading/README.md
+// (where a result's copies live per fetch path, and when each is freed)
 
 // Avoid clash with TRUE and FALSE macros in older rtools
 #undef TRUE
@@ -24,6 +22,13 @@ using namespace cpp11::literals;
 	auto stmt_ptr = stmt.release();
 	if (stmt_ptr) {
 		delete stmt_ptr;
+	}
+}
+
+// Every entry point that takes a statement asks this first: the pointer may have been released by dbClearResult().
+static void CheckStatement(const duckdb::stmt_eptr_t &stmt, const char *context) {
+	if (!stmt || !stmt.get() || !stmt->stmt) {
+		rapi_error_with_context(context, "Invalid statement");
 	}
 }
 
@@ -76,7 +81,9 @@ static cpp11::list construct_retlist(duckdb::unique_ptr<PreparedStatement> stmt,
 
 	vector<unique_ptr<SQLStatement>> statements;
 	try {
-		statements = conn->conn->ExtractStatements(query.c_str());
+		Parser parser(conn->conn->context->GetParserOptions());
+		parser.ParseQuery(query);
+		statements = std::move(parser.statements);
 	} catch (std::exception &ex) {
 		ErrorData error(ex);
 		error.AddErrorLocation(query);
@@ -108,19 +115,57 @@ static cpp11::list construct_retlist(duckdb::unique_ptr<PreparedStatement> stmt,
 		}
 	}
 
-	// if there are multiple statements, we directly execute the statements besides the last one
-	// we only return the result of the last statement to the user, unless one of the previous statements fails
-	for (idx_t i = 0; i + 1 < statements.size(); i++) {
-		auto res = conn->conn->Query(std::move(statements[i]));
-
-		signal_handler.HandleInterrupt();
-
-		if (res->HasError()) {
-			ErrorData error(res->GetError());
+	unique_ptr<SQLStatement> last_statement;
+	for (idx_t i = 0; i < statements.size(); i++) {
+		vector<unique_ptr<SQLStatement>> fragments;
+		fragments.push_back(std::move(statements[i]));
+		try {
+			conn->conn->context->PreprocessStatements(fragments);
+		} catch (std::exception &ex) {
+			ErrorData error(ex);
+			error.AddErrorLocation(query);
 			rapi_error_with_context("rapi_prepare", error);
 		}
+		// A PRAGMA can expand to a LOAD (import_database runs the SQL it reads from disk), so its expansion is
+		// checked as a whole before any of it runs: refusing it part-way would leave the implicit BEGIN the
+		// engine wraps the expansion in open, and every later statement on the connection inside it.
+		if (!conn->db->allow_extensions) {
+			for (auto &fragment : fragments) {
+				if (fragment->type == StatementType::LOAD_STATEMENT) {
+					rapi_error_with_context("load_extension", "");
+				}
+			}
+		}
+		for (idx_t j = 0; j < fragments.size(); j++) {
+			auto &fragment = fragments[j];
+			if (i + 1 == statements.size() && j + 1 == fragments.size()) {
+				last_statement = std::move(fragment);
+				break;
+			}
+			auto res = conn->conn->Query(std::move(fragment));
+			if (res->HasError()) {
+				// Mirrors ClientContext::Query(const string &), which rolls back the implicit transaction a PRAGMA's
+				// expansion runs in when one of its statements fails. Query(unique_ptr<SQLStatement>) does so only
+				// for an error raised before execution, and leaves the transaction open and aborted otherwise.
+				// Ahead of HandleInterrupt(), so that an interrupted fragment is rolled back too.
+				auto &transaction = conn->conn->context->transaction;
+				if (transaction.HasActiveTransaction() && transaction.GetAutoRollback()) {
+					transaction.Rollback(res->GetErrorObject());
+				}
+			}
+			signal_handler.HandleInterrupt();
+			if (res->HasError()) {
+				// `GetErrorObject()`, not `GetError()`: the latter is the formatted
+				// message, and rebuilding an `ErrorData` from it would report every
+				// failure as INVALID with no extra info.
+				rapi_error_with_context("rapi_prepare", res->GetErrorObject());
+			}
+		}
 	}
-	auto stmt = conn->conn->Prepare(std::move(statements.back()));
+	// The last statement is the call's result. With no fragment left, it was a PRAGMA that expanded to nothing, the
+	// only statement that can, and it returns what any other PRAGMA returns: no rows of one `Success` column.
+	auto stmt = last_statement ? conn->conn->Prepare(std::move(last_statement))
+	                           : conn->conn->Prepare("SELECT CAST(NULL AS BOOLEAN) AS Success LIMIT 0");
 
 	signal_handler.HandleInterrupt();
 
@@ -138,9 +183,7 @@ static SEXP rapi_execute_impl(RStatement *stmt, const duckdb::ConvertOpts &conve
 
 [[cpp11::register]] cpp11::list rapi_bind(duckdb::stmt_eptr_t stmt, cpp11::list params,
                                           duckdb::ConvertOpts convert_opts) {
-	if (!stmt || !stmt.get() || !stmt->stmt) {
-		rapi_error_with_context("rapi_bind", "Invalid statement");
-	}
+	CheckStatement(stmt, "rapi_bind");
 
 	auto n_param = stmt->stmt->named_param_map.size();
 
@@ -156,27 +199,28 @@ static SEXP rapi_execute_impl(RStatement *stmt, const duckdb::ConvertOpts &conve
 	stmt->parameters.clear();
 	stmt->parameters.resize(n_param);
 
-	R_len_t n_rows = Rf_length(params[0]);
+	// A data frame binds as STRUCT, one value per row, so the rows are counted by type, not by length.
+	R_len_t n_rows = RApiTypes::GetVecSize(params[0]);
 
 	for (auto param = std::next(params.begin()); param != params.end(); ++param) {
-		if (Rf_length(*param) != n_rows) {
+		if (RApiTypes::GetVecSize(*param) != n_rows) {
 			rapi_error_with_context("rapi_bind", "Bind parameter values need to have the same length");
 		}
 	}
 
 	bool arrow = convert_opts.arrow == ConvertOpts::ArrowConversion::ENABLED;
-	bool streaming = convert_opts.streaming == ConvertOpts::ResultStreaming::ENABLED;
+	bool allow_stream = convert_opts.allow_stream_result == ConvertOpts::AllowStreamResult::ENABLED;
 
 	// The legacy arrow path (`dbSendQuery(arrow = TRUE)`) materializes results and
 	// has never supported binding multiple rows; preserve that error.
-	if (arrow && !streaming && n_rows != 1) {
+	if (arrow && !allow_stream && n_rows != 1) {
 		rapi_error_with_context("rapi_bind", "Bind parameter values need to have length one for arrow queries");
 	}
 
 	// Streaming arrow results from the same prepared statement cannot coexist
 	// (each Execute() invalidates the previous StreamQueryResult). Materialize
 	// per-row arrow results when binding multiple rows.
-	bool allow_stream_result = arrow && streaming && n_rows == 1;
+	bool allow_stream_result = arrow && allow_stream && n_rows == 1;
 
 	cpp11::writable::list out;
 	out.reserve(n_rows);
@@ -196,6 +240,25 @@ static SEXP rapi_execute_impl(RStatement *stmt, const duckdb::ConvertOpts &conve
 	return out;
 }
 
+// Create the result data frame and allocate columns, without any values yet.
+// Note we cannot use cpp11's data frame here as it tries to calculate the number of rows itself,
+// but gives the wrong answer if the first column is another data frame. So we set the necessary
+// attributes manually.
+static cpp11::writable::list duckdb_r_allocate_df(const vector<LogicalType> &types, const vector<string> &names,
+                                                  idx_t nrows, const duckdb::ConvertOpts &convert_opts,
+                                                  const char *caller) {
+	cpp11::writable::list data_frame;
+	data_frame.reserve(types.size());
+
+	for (size_t col_idx = 0; col_idx < types.size(); col_idx++) {
+		cpp11::sexp varvalue = duckdb_r_allocate(types[col_idx], nrows, names[col_idx], convert_opts, caller);
+		duckdb_r_decorate(types[col_idx], varvalue, convert_opts);
+		data_frame.push_back(varvalue);
+	}
+
+	return data_frame;
+}
+
 SEXP duckdb::duckdb_execute_R_impl(MaterializedQueryResult *result, const duckdb::ConvertOpts &convert_opts,
                                    SEXP class_) {
 	// step 2: create result data frame and allocate columns
@@ -206,18 +269,13 @@ SEXP duckdb::duckdb_execute_R_impl(MaterializedQueryResult *result, const duckdb
 
 	auto nrows = result->RowCount();
 
-	// Note we cannot use cpp11's data frame here as it tries to calculate the number of rows itself,
-	// but gives the wrong answer if the first column is another data frame. So we set the necessary
-	// attributes manually.
-	cpp11::writable::list data_frame;
-	data_frame.reserve(ncols);
+	// Propagate the session's TimeZone so TIMESTAMP WITH TIME ZONE columns
+	// can be tagged with the timezone DuckDB used to format their value.
+	ConvertOpts local_convert_opts = convert_opts;
+	local_convert_opts.session_time_zone = result->client_properties.time_zone;
 
-	for (size_t col_idx = 0; col_idx < ncols; col_idx++) {
-		cpp11::sexp varvalue = duckdb_r_allocate(result->types[col_idx], nrows, result->names[col_idx], convert_opts,
-		                                         "duckdb_execute_R_impl");
-		duckdb_r_decorate(result->types[col_idx], varvalue, convert_opts);
-		data_frame.push_back(varvalue);
-	}
+	cpp11::writable::list data_frame =
+	    duckdb_r_allocate_df(result->types, result->names, nrows, local_convert_opts, "duckdb_execute_R_impl");
 
 	// step 3: set values from chunks
 	idx_t dest_offset = 0;
@@ -225,7 +283,7 @@ SEXP duckdb::duckdb_execute_R_impl(MaterializedQueryResult *result, const duckdb
 		D_ASSERT(chunk.ColumnCount() == ncols);
 		D_ASSERT(chunk.ColumnCount() == (idx_t)Rf_length(data_frame));
 		for (size_t col_idx = 0; col_idx < chunk.ColumnCount(); col_idx++) {
-			duckdb_r_transform(chunk.data[col_idx], data_frame[col_idx], dest_offset, chunk.size(), convert_opts,
+			duckdb_r_transform(chunk.data[col_idx], data_frame[col_idx], dest_offset, chunk.size(), local_convert_opts,
 			                   result->names[col_idx]);
 		}
 		dest_offset += chunk.size();
@@ -244,193 +302,47 @@ SEXP duckdb::duckdb_execute_R_impl(MaterializedQueryResult *result, const duckdb
 	return data_frame;
 }
 
-struct AppendableRList {
-	AppendableRList() {
-		the_list = NEW_LIST(capacity);
-	}
-	void PrepAppend() {
-		if (size >= capacity) {
-			capacity = capacity * 2;
-			cpp11::sexp new_list = NEW_LIST(capacity);
-			D_ASSERT(new_list != R_NilValue);
-			for (idx_t i = 0; i < size; i++) {
-				SET_VECTOR_ELT(new_list, i, VECTOR_ELT(the_list, i));
-			}
-			the_list = new_list;
+// Refuse a result column R cannot hold before the statement runs,
+// so that a statement with side effects, such as INSERT ... RETURNING, is not run for rows the conversion then refuses.
+// duckdb_r_typeof() is the judge, and throws the message the conversion would,
+// for a column or for anything nested in it (handbook/usage/types/README.md).
+static void CheckResultTypeForR(const LogicalType &type, const string &name) {
+	switch (type.id()) {
+	case LogicalTypeId::UNKNOWN:
+	case LogicalTypeId::SQLNULL:
+		// Resolved when the parameters are bound, or holding no value to convert
+		return;
+	case LogicalTypeId::LIST:
+		CheckResultTypeForR(ListType::GetChildType(type), name);
+		return;
+	case LogicalTypeId::ARRAY:
+		CheckResultTypeForR(ArrayType::GetChildType(type), name);
+		return;
+	case LogicalTypeId::MAP:
+		CheckResultTypeForR(MapType::KeyType(type), name);
+		CheckResultTypeForR(MapType::ValueType(type), name);
+		return;
+	case LogicalTypeId::STRUCT:
+		for (const auto &child : StructType::GetChildTypes(type)) {
+			CheckResultTypeForR(child.second, name + "$" + child.first);
 		}
+		return;
+	default:
+		(void)duckdb_r_typeof(type, name, "rapi_execute");
+		return;
 	}
-
-	void Append(SEXP val) {
-		D_ASSERT(size < capacity);
-		D_ASSERT(the_list != R_NilValue);
-		SET_VECTOR_ELT(the_list, size++, val);
-	}
-	cpp11::sexp the_list;
-	idx_t capacity = 1000;
-	idx_t size = 0;
-};
-
-bool FetchArrowChunk(ChunkScanState &scan_state, ClientProperties options, AppendableRList &batches_list,
-                     ArrowArray &arrow_data, ArrowSchema &arrow_schema, SEXP batch_import_from_c, SEXP arrow_namespace,
-                     idx_t chunk_size) {
-	auto count =
-	    ArrowUtil::FetchChunk(scan_state, options, chunk_size, &arrow_data,
-	                          ArrowTypeExtensionData::GetExtensionTypes(*options.client_context, scan_state.Types()));
-	if (count == 0) {
-		return false;
-	}
-	ArrowConverter::ToArrowSchema(&arrow_schema, scan_state.Types(), scan_state.Names(), options);
-	batches_list.PrepAppend();
-	batches_list.Append(cpp11::safe[Rf_eval](batch_import_from_c, arrow_namespace));
-	return true;
-}
-
-// Turn a DuckDB result set into an Arrow Table
-[[cpp11::register]] SEXP rapi_execute_arrow(duckdb::rqry_eptr_t qry_res, int chunk_size) {
-	if (!qry_res || !qry_res.get()) {
-		rapi_error_with_context("rapi_execute_arrow", "Invalid query result");
-	}
-	if (!qry_res->result) {
-		rapi_error_with_context("rapi_execute_arrow", "Result has already been consumed");
-	}
-	auto result = qry_res->result.get();
-	// somewhat dark magic below
-	cpp11::function getNamespace = RStrings::get().getNamespace_sym;
-	cpp11::sexp arrow_namespace(getNamespace(RStrings::get().arrow_str));
-
-	// export schema setup
-	ArrowSchema arrow_schema;
-	cpp11::doubles schema_ptr_sexp(Rf_ScalarReal(static_cast<double>(reinterpret_cast<uintptr_t>(&arrow_schema))));
-	cpp11::sexp schema_import_from_c(Rf_lang2(RStrings::get().ImportSchema_sym, schema_ptr_sexp));
-
-	// export data setup
-	ArrowArray arrow_data;
-	cpp11::doubles data_ptr_sexp(Rf_ScalarReal(static_cast<double>(reinterpret_cast<uintptr_t>(&arrow_data))));
-	cpp11::sexp batch_import_from_c(Rf_lang3(RStrings::get().ImportRecordBatch_sym, data_ptr_sexp, schema_ptr_sexp));
-	// create data batches
-	AppendableRList batches_list;
-
-	QueryResultChunkScanState scan_state(*result);
-	while (FetchArrowChunk(scan_state, result->client_properties, batches_list, arrow_data, arrow_schema,
-	                       batch_import_from_c, arrow_namespace, chunk_size)) {
-	}
-
-	SET_LENGTH(batches_list.the_list, batches_list.size);
-	ArrowConverter::ToArrowSchema(&arrow_schema, result->types, result->names, result->client_properties);
-	cpp11::sexp schema_arrow_obj(cpp11::safe[Rf_eval](schema_import_from_c, arrow_namespace));
-
-	// create arrow::Table
-	cpp11::sexp from_record_batches(
-	    Rf_lang3(RStrings::get().Table__from_record_batches_sym, batches_list.the_list, schema_arrow_obj));
-	return cpp11::safe[Rf_eval](from_record_batches, arrow_namespace);
-}
-
-// Move the streaming query result into a nanoarrow-owned ArrowArrayStream.
-// `stream_xptr` is a nanoarrow_array_stream external pointer whose target
-// `ArrowArrayStream` struct has been zero-initialized by
-// `nanoarrow::nanoarrow_allocate_array_stream()`. After this call, the
-// stream owns the underlying QueryResult; the wrapper deletes itself when
-// nanoarrow's finalizer invokes `stream->release()`.
-[[cpp11::register]] void rapi_fetch_arrow_stream_into(duckdb::rqry_eptr_t qry_res, cpp11::sexp stream_xptr,
-                                                      int chunk_size) {
-	if (!qry_res || !qry_res.get()) {
-		rapi_error_with_context("rapi_fetch_arrow_stream_into", "Invalid query result");
-	}
-	if (chunk_size <= 0) {
-		rapi_error_with_context("rapi_fetch_arrow_stream_into", "Chunk Size must be higher than 0");
-	}
-	if (TYPEOF(stream_xptr.data()) != EXTPTRSXP) {
-		rapi_error_with_context("rapi_fetch_arrow_stream_into", "Expected an external pointer for stream");
-	}
-	auto out = reinterpret_cast<ArrowArrayStream *>(R_ExternalPtrAddr(stream_xptr.data()));
-	if (out == nullptr) {
-		rapi_error_with_context("rapi_fetch_arrow_stream_into", "Stream pointer is NULL");
-	}
-	if (out->release != nullptr) {
-		rapi_error_with_context("rapi_fetch_arrow_stream_into", "Stream pointer is already initialized");
-	}
-
-	ResultArrowArrayStreamWrapper *wrapper;
-	if (qry_res->stream_wrapper) {
-		wrapper = qry_res->stream_wrapper.release();
-	} else if (qry_res->result) {
-		wrapper = new ResultArrowArrayStreamWrapper(std::move(qry_res->result), chunk_size);
-	} else {
-		rapi_error_with_context("rapi_fetch_arrow_stream_into", "Result has already been consumed");
-	}
-
-	// POD-copy the wired-up stream; the wrapper deletes itself via the release
-	// callback when nanoarrow's finalizer runs on `out`.
-	*out = wrapper->stream;
-	// Defensive: prevent any other path from re-releasing via the wrapper.
-	wrapper->stream.release = nullptr;
-}
-
-// Fetch one Arrow chunk from the streaming query result. Both `schema_xptr`
-// and `array_xptr` are nanoarrow-owned external pointers to zeroed structs
-// (typically from `nanoarrow::nanoarrow_allocate_schema()` and
-// `nanoarrow::nanoarrow_allocate_array()`). The schema is populated on every
-// call so the caller can rely on it after the first chunk. Returns TRUE
-// when a chunk was fetched, FALSE when the stream is exhausted.
-[[cpp11::register]] bool rapi_fetch_arrow_array(duckdb::rqry_eptr_t qry_res, cpp11::sexp array_xptr,
-                                                cpp11::sexp schema_xptr, int chunk_size) {
-	if (!qry_res || !qry_res.get()) {
-		rapi_error_with_context("rapi_fetch_arrow_array", "Invalid query result");
-	}
-	if (chunk_size <= 0) {
-		rapi_error_with_context("rapi_fetch_arrow_array", "Chunk Size must be higher than 0");
-	}
-	if (TYPEOF(array_xptr.data()) != EXTPTRSXP || TYPEOF(schema_xptr.data()) != EXTPTRSXP) {
-		rapi_error_with_context("rapi_fetch_arrow_array", "Expected external pointers for array and schema");
-	}
-
-	auto out_array = reinterpret_cast<ArrowArray *>(R_ExternalPtrAddr(array_xptr.data()));
-	auto out_schema = reinterpret_cast<ArrowSchema *>(R_ExternalPtrAddr(schema_xptr.data()));
-	if (out_array == nullptr || out_schema == nullptr) {
-		rapi_error_with_context("rapi_fetch_arrow_array", "Output pointers are NULL");
-	}
-
-	if (!qry_res->stream_wrapper) {
-		if (!qry_res->result) {
-			rapi_error_with_context("rapi_fetch_arrow_array", "Result has already been consumed");
-		}
-		qry_res->stream_wrapper = make_uniq<ResultArrowArrayStreamWrapper>(std::move(qry_res->result), chunk_size);
-	}
-
-	auto &stream = qry_res->stream_wrapper->stream;
-	if (out_schema->release == nullptr) {
-		if (stream.get_schema(&stream, out_schema) != 0) {
-			rapi_error_with_context("rapi_fetch_arrow_array", stream.get_last_error(&stream));
-		}
-	}
-	if (stream.get_next(&stream, out_array) != 0) {
-		rapi_error_with_context("rapi_fetch_arrow_array", stream.get_last_error(&stream));
-	}
-	return out_array->release != nullptr;
-}
-
-// Turn a DuckDB result set into an RecordBatchReader
-[[cpp11::register]] SEXP rapi_record_batch(duckdb::rqry_eptr_t qry_res, int chunk_size) {
-	if (!qry_res || !qry_res.get()) {
-		rapi_error_with_context("rapi_record_batch", "Invalid query result");
-	}
-	if (!qry_res->result) {
-		rapi_error_with_context("rapi_record_batch", "Result has already been consumed");
-	}
-	// somewhat dark magic below
-	cpp11::function getNamespace = RStrings::get().getNamespace_sym;
-	cpp11::sexp arrow_namespace(getNamespace(RStrings::get().arrow_str));
-
-	// FIXME: This is a memory leak, need better lifecycle management
-	auto result_stream = new ResultArrowArrayStreamWrapper(std::move(qry_res->result), chunk_size);
-
-	cpp11::sexp stream_ptr_sexp(
-	    Rf_ScalarReal(static_cast<double>(reinterpret_cast<uintptr_t>(&result_stream->stream))));
-	cpp11::sexp record_batch_reader(Rf_lang2(RStrings::get().ImportRecordBatchReader_sym, stream_ptr_sexp));
-	return cpp11::safe[Rf_eval](record_batch_reader, arrow_namespace);
 }
 
 static SEXP rapi_execute_impl(RStatement *stmt, const duckdb::ConvertOpts &convert_opts, bool allow_stream_result) {
+	// Only the conversion to R vectors needs the check: an Arrow result carries every type.
+	if (convert_opts.arrow != ConvertOpts::ArrowConversion::ENABLED) {
+		const auto &types = stmt->stmt->GetTypes();
+		const auto &names = stmt->stmt->GetNames();
+		for (idx_t col_idx = 0; col_idx < types.size(); col_idx++) {
+			CheckResultTypeForR(types[col_idx], names[col_idx]);
+		}
+	}
+
 	ScopedInterruptHandler signal_handler(stmt->stmt->context);
 
 	auto generic_result = stmt->stmt->Execute(stmt->parameters, allow_stream_result);
@@ -440,13 +352,13 @@ static SEXP rapi_execute_impl(RStatement *stmt, const duckdb::ConvertOpts &conve
 	signal_handler.Disable();
 
 	if (generic_result->HasError()) {
-		ErrorData error(generic_result->GetError());
-		rapi_error_with_context("rapi_execute", error);
+		// The error object rather than its message, so that the exception type
+		// and extra info survive to the caller -- see rapi_prepare() above.
+		rapi_error_with_context("rapi_execute", generic_result->GetErrorObject());
 	}
 
 	if (convert_opts.arrow == ConvertOpts::ArrowConversion::ENABLED) {
-		auto query_result = make_uniq<RQueryResult>();
-		query_result->result = std::move(generic_result);
+		auto query_result = make_uniq<RQueryResult>(std::move(generic_result));
 		rqry_eptr_t query_resultsexp(query_result.release());
 		return query_resultsexp;
 	} else {
@@ -460,11 +372,9 @@ static SEXP rapi_execute_impl(RStatement *stmt, const duckdb::ConvertOpts &conve
 }
 
 [[cpp11::register]] SEXP rapi_execute(duckdb::stmt_eptr_t stmt, duckdb::ConvertOpts convert_opts) {
-	if (!stmt || !stmt.get() || !stmt->stmt) {
-		rapi_error_with_context("rapi_execute", "Invalid statement");
-	}
+	CheckStatement(stmt, "rapi_execute");
 
 	bool allow_stream_result = convert_opts.arrow == ConvertOpts::ArrowConversion::ENABLED &&
-	                           convert_opts.streaming == ConvertOpts::ResultStreaming::ENABLED;
+	                           convert_opts.allow_stream_result == ConvertOpts::AllowStreamResult::ENABLED;
 	return rapi_execute_impl(stmt.get(), convert_opts, allow_stream_result);
 }

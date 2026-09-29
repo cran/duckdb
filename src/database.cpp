@@ -47,7 +47,7 @@ static bool CastRstringToVarchar(Vector &source, Vector &result, idx_t count, Ca
 		try {
 			config.SetOptionByName(key, Value(val));
 		} catch (std::exception &e) {
-			rapi_error_with_context("rapi_startup", e);
+			rapi_error_with_context("rapi_startup", ErrorData(e));
 		}
 	}
 
@@ -78,7 +78,7 @@ static bool CastRstringToVarchar(Vector &source, Vector &result, idx_t count, Ca
 			function.global_initialization = TableFunctionInitialization::INITIALIZE_ON_SCHEDULE;
 		}
 	} catch (std::exception &e) {
-		rapi_error_with_context("rapi_startup", e);
+		rapi_error_with_context("rapi_startup", ErrorData(e));
 	}
 	D_ASSERT(wrapper->db);
 
@@ -124,6 +124,19 @@ static bool CastRstringToVarchar(Vector &source, Vector &result, idx_t count, Ca
 		rapi_error_with_context("rapi_is_locked", "Invalid database reference");
 	}
 	return dual->is_locked();
+}
+
+// Whether the reference still points at a live database. A predicate: it does not
+// lock, connect or query, and a released reference answers false rather than raising.
+[[cpp11::register]] bool rapi_database_valid(duckdb::db_eptr_t dual) {
+	if (!dual || !dual.get()) {
+		return false;
+	}
+	auto wrapper = dual->get();
+	if (!wrapper || !wrapper->db) {
+		return false;
+	}
+	return true;
 }
 
 [[cpp11::register]] void rapi_shutdown(duckdb::db_eptr_t dbsexp) {

@@ -18,7 +18,7 @@ test_that("duckdb_storage_status reports the per-session default", {
   expect_equal(st$source, c("session", "session"))
   expect_equal(
     st$directory,
-    c("/tmp/sess/duckdb/extensions", "/tmp/sess/duckdb/stored_secrets")
+    c(session_home_path("extensions"), session_home_path("stored_secrets"))
   )
 })
 
@@ -57,7 +57,9 @@ test_that("duckdb_storage_status prints a readable summary", {
   local_no_home_overrides()
   local_mocked_bindings(
     session_temp_dir = function() "/tmp/sess",
-    duckdb_shared_home = function() file.path(tempdir(), "snapshot-no-shared-home")
+    duckdb_shared_home = function() {
+      file.path(tempdir(), "snapshot-no-shared-home")
+    }
   )
-  expect_snapshot(duckdb_storage_status())
+  expect_snapshot(duckdb_storage_status(), transform = transform_package_name)
 })

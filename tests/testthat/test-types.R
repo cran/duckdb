@@ -29,7 +29,112 @@ test_that("test_all_types() output", {
 
     as.list(dbGetQuery(
       con,
-      paste0("SELECT * EXCLUDE (", paste(bad, collapse = ", "), ") REPLACE(replace(varchar, chr(0), '') AS varchar) FROM test_all_types(use_large_enum=true)")
+      paste0(
+        "SELECT * EXCLUDE (",
+        paste(bad, collapse = ", "),
+        ") REPLACE(replace(varchar, chr(0), '') AS varchar) FROM test_all_types(use_large_enum=true)"
+      )
     ))
   })
+})
+
+# A column carrying a class attribute -- `units`, and anything else built the
+# same way -- crosses as the numeric underneath it, so the value is what a
+# caller gets back and can re-apply the class to:
+# handbook/usage/types/README.md, reported as #590.
+test_that("the value of a classed numeric column survives every route in", {
+  con <- local_con()
+
+  df <- data.frame(id = 1:3)
+  df$area <- structure(c(1.5, 2.5, 3.5), class = "area_unit")
+
+  dbWriteTable(con, "written", df)
+  expect_equal(
+    dbGetQuery(con, "SELECT area FROM written")$area,
+    c(1.5, 2.5, 3.5)
+  )
+
+  duckdb_register(con, "registered", df)
+  expect_equal(
+    dbGetQuery(con, "SELECT area FROM registered")$area,
+    c(1.5, 2.5, 3.5)
+  )
+
+  bound <- dbGetQuery(
+    con,
+    "SELECT ? AS area",
+    params = list(structure(2.5, class = "area_unit"))
+  )
+  expect_equal(bound$area, 2.5)
+})
+
+test_that("a table whose columns R cannot hold is still found and listed", {
+  con <- local_con()
+
+  for (type in c("BIT", "BIGNUM", "TIME_NS", "UNION(a INTEGER)")) {
+    dbExecute(con, paste("CREATE OR REPLACE TABLE t (x", type, ", y INTEGER)"))
+
+    expect_true(dbExistsTable(con, "t"), info = type)
+    expect_equal(dbListFields(con, "t"), c("x", "y"), info = type)
+  }
+})
+
+test_that("a column R cannot hold is refused by name", {
+  skip_if_not_installed("nanoarrow")
+  con <- local_con()
+
+  res <- dbSendQueryArrow(con, "SELECT '101'::BIT AS x")
+  on.exit(dbClearResult(res))
+
+  expect_equal(dbColumnInfo(res)$type, "unknown")
+  expect_error(dbGetQuery(con, "SELECT '101'::BIT AS x"), "column `x`: BIT")
+})
+
+test_that("a statement returning a column R cannot hold is refused before it runs", {
+  con <- local_con()
+  dbExecute(
+    con,
+    "CREATE TABLE t (x BIT, s STRUCT(u UNION(i INTEGER)), y INTEGER)"
+  )
+  count <- function() dbGetQuery(con, "SELECT count(*) AS n FROM t")$n
+
+  expect_error(
+    dbGetQuery(con, "INSERT INTO t (x, y) VALUES ('1', 1) RETURNING x"),
+    "column `x`: BIT"
+  )
+  expect_error(
+    dbExecute(con, "INSERT INTO t (x, y) VALUES ('1', 1) RETURNING x"),
+    "column `x`: BIT"
+  )
+  expect_error(
+    dbGetQuery(
+      con,
+      "INSERT INTO t (x, y) VALUES (?, ?) RETURNING x",
+      params = list("1", 1L)
+    ),
+    "column `x`: BIT"
+  )
+  # So is one nested in a struct
+  expect_error(
+    dbGetQuery(con, "INSERT INTO t (y) VALUES (1) RETURNING s"),
+    "column `s\\$u`: UNION"
+  )
+  expect_equal(count(), 0)
+})
+
+test_that("a statement returning a column R cannot hold runs through Arrow", {
+  skip_if_not_installed("nanoarrow")
+  con <- local_con()
+  dbExecute(con, "CREATE TABLE t (x BIT, y INTEGER)")
+  count <- function() dbGetQuery(con, "SELECT count(*) AS n FROM t")$n
+
+  res <- dbGetQueryArrow(con, "INSERT INTO t VALUES ('1', 1) RETURNING x")
+  expect_equal(nrow(as.data.frame(res)), 1)
+  expect_equal(count(), 1)
+
+  res <- dbSendQueryArrow(con, "INSERT INTO t VALUES ('10', 2) RETURNING x")
+  expect_equal(dbColumnInfo(res)$type, "unknown")
+  expect_equal(nrow(as.data.frame(dbFetchArrow(res))), 1)
+  dbClearResult(res)
+  expect_equal(count(), 2)
 })
