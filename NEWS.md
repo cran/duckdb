@@ -1,4 +1,67 @@
-<!-- NEWS.md is maintained by https://fledge.cynkra.com, contributors should not edit this file -->
+# duckdb 2.0.0
+
+## Breaking changes
+
+- Update to DuckDB v2.0.0, see <https://github.com/duckdb/duckdb/releases/tag/v2.0.0> for details.
+
+- `SELECT NULL` has the `NULL` type: the Arrow route hands it on as a null array, format `n`, rather than `int32`, and `CREATE TABLE ... AS` makes a `NULL`-typed column of it.
+
+- A `SELECT` that writes, one calling `nextval()` for instance, runs to completion before `dbSendQueryArrow()` returns rather than streaming.
+
+## Features
+
+- `TIMESTAMP_TZ_NS` columns read as `POSIXct`, labeled with the session `TimeZone` like `TIMESTAMPTZ`.
+
+- `TUPLE` columns read as data frames whose columns are named `element1`, `element2`, ... rather than left unnamed, and an empty `STRUCT` as a data frame without columns.
+
+- `EXPLAIN` renders its plan in a more compact layout, with operators named like `Dummy Scan` rather than `DUMMY_SCAN`, and `rel_explain()`'s HTML output is an interactive document.
+
+- An error's `LINE` context underlines the whole offending token, not just its first character.
+
+## Compatibility
+
+- Patches to the vendored engine fix compiler warnings that GCC, clang and MinGW raise in its sources.
+
+- Installing from source no longer needs `xz`, and `SystemRequirements` no longer lists it (#2960).
+
+## Bug fixes
+
+- A `POSIXct` or `difftime` halfway between two microseconds writes rounded to even, as `dbQuoteLiteral()` quotes it (#2887).
+
+- `dbExistsTable()` leaves an open transaction usable,
+  and raises rather than returning `FALSE` in a transaction that has already failed
+  or for a name that cannot be quoted, such as `NA` (#2892, #2893, #2896).
+
+- `duckdb_read_csv()` applies `col.names` given without `col.types`, names unnamed `col.types` after the file's columns,
+  and refuses a `col.names` of the wrong length (#2896).
+
+- With `enable_profiling` and `profiling_output` set,
+  an `EXPLAIN ANALYZE` that failed, or was prepared and never run,
+  no longer leaves the next query on the connection without a profile (#2904).
+
+- An R error from materializing a duckdb ALTREP column while a data frame scan binds fails the query
+  rather than leaving the session busy,
+  and a relation of another connection materializes there as it does through `rel_from_df()` (#2909).
+  Bound on one of the engine's own threads, as in a join with `pragma_table_info()`,
+  a registered data frame is read without calling R,
+  and a column that only R can read, such as a list or struct column of `rel_to_altrep()`, fails with an error that says what to do (#2965).
+
+- `rel_to_csv()` and `rel_to_parquet()` refuse an empty file name or `NA` with "`file_name` must be a non-empty string.",
+  rather than failing with the engine's I/O error or writing a file called `NA` (#2941, #2952).
+
+- `slice_sample()` on a dbplyr lazy table draws its random key in a subquery,
+  so it works with DuckDB 2.0, which refuses a window ordered by a random value (#2964).
+
+- A query that scans an Arrow stream on the stream's own connection fails with the invalidation error rather than waiting for good.
+
+- `dbBind()` on a `dbSendQuery()` result after `dbDisconnect()` fails with "Attempting to execute a prepared statement after its connection was closed!" rather than running the statement again; `dbFetch()` still returns its rows.
+
+## Known issues
+
+- The progress display stops after the first batch of a result read as an Arrow stream
+  (`dbSendQueryArrow()` or `dbGetQueryArrow()`, then `$get_next()`).
+  The engine reports progress while it computes the first batch and treats the query as finished from then on (#2967).
+
 
 # duckdb 1.5.6
 

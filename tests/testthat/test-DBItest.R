@@ -123,7 +123,6 @@ if (rlang::is_installed("DBItest")) {
         "arrow_write_table_arrow_roundtrip_character_empty_after",
         "arrow_write_table_arrow_roundtrip_date",
         "arrow_write_table_arrow_roundtrip_date_extended",
-        "arrow_write_table_arrow_roundtrip_time",
         "arrow_write_table_arrow_roundtrip_mixed",
         "arrow_create_table_arrow_error",
         "arrow_create_table_arrow_temporary",
@@ -133,7 +132,6 @@ if (rlang::is_installed("DBItest")) {
         "arrow_append_table_arrow_error",
         "arrow_append_table_arrow_roundtrip_quotes",
         "arrow_append_table_arrow_roundtrip_64_bit_roundtrip",
-        "arrow_append_table_arrow_roundtrip_time",
         "arrow_append_table_arrow_roundtrip_mixed",
         "list_tables",
         "list_tables_quote",
@@ -159,6 +157,12 @@ if (rlang::is_installed("DBItest")) {
         NULL
       )
     },
+
+    # `dbDataType()` says TIME for `hms` and `difftime`, the write routes INTERVAL,
+    # so DBI's Arrow methods create a table they cannot append to
+    # (handbook/usage/types/README.md).
+    "arrow_write_table_arrow_roundtrip_time",
+    "arrow_append_table_arrow_roundtrip_time",
 
     "package_name", # wontfix
     "package_dependencies", # wontfix
@@ -223,8 +227,10 @@ if (rlang::is_installed("DBItest")) {
     "data_time_current",
     "data_date_current",
 
+    # These specs build `blob` or `hms` values, and both packages import vctrs.
     if (!rlang::is_installed("vctrs")) {
       c(
+        "arrow_write_table_arrow_roundtrip_blob",
         "arrow_append_table_arrow_roundtrip_blob",
         "data_type_driver",
         "data_type_connection",
@@ -234,6 +240,10 @@ if (rlang::is_installed("DBItest")) {
         "data_timestamp_current_typed",
         "append_roundtrip_raw",
         "append_roundtrip_blob",
+        "append_roundtrip_time",
+        "roundtrip_raw",
+        "roundtrip_blob",
+        "roundtrip_time",
         "bind_blob",
         "arrow_bind_blob",
         "stream_bind_blob",
