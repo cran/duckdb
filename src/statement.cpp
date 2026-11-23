@@ -174,9 +174,11 @@ static cpp11::list construct_retlist(duckdb::unique_ptr<PreparedStatement> stmt,
 
 	D_ASSERT(conn->db->env == R_NilValue);
 	conn->db->env = (SEXP)env;
+	conn->db->env_convert_opts = &conn->convert_opts;
 	conn->db->registered_dfs = Rf_cons(R_NilValue, R_NilValue);
 	duckdb_httplib::detail::scope_exit reset_db_env([&]() {
 		conn->db->env = R_NilValue;
+		conn->db->env_convert_opts = nullptr;
 		conn->db->registered_dfs = R_NilValue;
 	});
 
@@ -301,6 +303,15 @@ static SEXP rapi_execute_impl(RStatement *stmt, const duckdb::ConvertOpts &conve
 
 	stmt->parameters.clear();
 	stmt->parameters.resize(n_param);
+
+	// Refused before the rows are counted in the first parameter
+	for (R_xlen_t param_idx = 0; param_idx < params.size(); param_idx++) {
+		auto error =
+		    RApiTypes::ArrayParameterError(params[param_idx], "params[[" + std::to_string(param_idx + 1) + "]]");
+		if (!error.empty()) {
+			rapi_error_with_context("rapi_bind", error);
+		}
+	}
 
 	// A data frame binds as STRUCT, one value per row, so the rows are counted by type, not by length.
 	R_len_t n_rows = RApiTypes::GetVecSize(params[0]);

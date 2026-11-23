@@ -53,3 +53,13 @@ test_that("an integer64 parameter binds as BIGINT", {
 
   expect_equal(res$v, c("9007199254740993", NA))
 })
+
+test_that("an integer64 column scans as BIGINT with `environment_scan = TRUE`", {
+  skip_if_not_installed("bit64")
+  con <- local_con(drv = duckdb(environment_scan = TRUE))
+  df <- data.frame(a = bit64::as.integer64(c("9007199254740993", NA)))
+
+  res <- dbGetQuery(con, "SELECT typeof(a) AS t, a::VARCHAR AS v FROM df")
+  expect_equal(res$t, c("BIGINT", "BIGINT"))
+  expect_equal(res$v, c("9007199254740993", NA))
+})

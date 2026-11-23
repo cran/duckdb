@@ -5,6 +5,7 @@
 #include "rapi.hpp"
 
 #include <mutex>
+#include <thread>
 #include <vector>
 
 // Avoid clash with TRUE and FALSE macros in older rtools
@@ -129,6 +130,10 @@ static void SetDefaultConfigArguments(ClientContext &context) {
 }
 
 [[cpp11::register]] void rapi_disconnect(duckdb::conn_eptr_t conn) {
+	// An object parked during the last R callback holds its client context, and with it the database:
+	// destroy it before letting go of the connection, or the file stays open (#2934).
+	// A no-op inside a callback, as everywhere: a finalizer may disconnect there.
+	RCallbackScope::Drain();
 	auto conn_wrapper = conn.release();
 	if (conn_wrapper) {
 		delete conn_wrapper;
@@ -142,6 +147,38 @@ static void SetDefaultConfigArguments(ClientContext &context) {
 		rapi_error_with_context("rapi_connection_in_transaction", "Invalid connection");
 	}
 	return !conn->conn->IsAutoCommit();
+}
+
+// Test-only, unexported: runs a query on a thread of its own while R's thread only waits for it,
+// so the query binds, and runs, off R's thread every time (#2962). Returns the error message, or NA.
+[[cpp11::register]] SEXP rapi_query_off_r_thread(duckdb::conn_eptr_t conn, std::string sql) {
+	if (!conn || !conn.get() || !conn->conn) {
+		rapi_error_with_context("rapi_query_off_r_thread", "Invalid connection");
+	}
+	auto &connection = *conn->conn;
+	bool failed = false;
+	string message;
+	std::thread worker([&]() {
+		try {
+			auto result = connection.Query(sql);
+			if (result->HasError()) {
+				failed = true;
+				message = result->GetError();
+			}
+		} catch (std::exception &ex) {
+			failed = true;
+			message = ErrorData(ex).Message();
+		} catch (...) {
+			// An exception escaping a std::thread would terminate R
+			failed = true;
+			message = "unknown error";
+		}
+	});
+	worker.join();
+	if (!failed) {
+		return Rf_ScalarString(NA_STRING);
+	}
+	return Rf_mkString(message.c_str());
 }
 
 // Replaces the policy that decides which errors abort the open transaction,
